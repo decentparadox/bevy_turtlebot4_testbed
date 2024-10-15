@@ -1,0 +1,11 @@
+[package]
+name = "bevy_gltf_testbed"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.13.0", features = ["wayland", "dynamic_linking", "jpeg"] }
+bevy_eventlistener = { version = "0.7" }
+bevy_rapier3d = { version = "0.25.0", features = ["debug-render-3d"] }
+bevy_mod_picking = { git = "https://github.com/StrikeForceZero/bevy_mod_picking.git", rev = "d91aa4c", default-features = false, features = ["backend_rapier"] }
+tracing = "0.1"
