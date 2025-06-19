@@ -1,11 +1,9 @@
 use bevy::asset::AssetServer;
 use bevy::ecs::{
-    bundle::Bundle, component::Component, entity::Entity, system::{Commands, Query, Res}
+    component::Component, entity::Entity, system::{Commands, Query, Res}
 };
 use bevy::hierarchy::BuildChildren;
 use bevy::math::{Quat, Vec3};
-use bevy::render::prelude::SpatialBundle;
-use bevy::scene::Scene;
 use bevy::transform::components::Transform;
 use bevy_rapier3d::{
     dynamics::{GenericJoint, GenericJointBuilder, ImpulseJoint, JointAxesMask, RigidBody, Sleeping},
@@ -46,70 +44,28 @@ pub enum Wheel {
     Right,
 }
 
-#[derive(Bundle)]
-struct ChassisPhysicsBundle {
-    rigid_body: RigidBody,
-    collider: Collider,
-    collision_groups: CollisionGroups,
-    collider_mass_properties: ColliderMassProperties,
-}
-
-impl Default for ChassisPhysicsBundle {
-    fn default() -> ChassisPhysicsBundle {
-        ChassisPhysicsBundle {
-            rigid_body: RigidBody::Dynamic,
-            collider: Collider::cylinder(0.5 * CHASSIS_HEIGHT, CHASSIS_RADIUS),
-            collision_groups: CollisionGroups::new(
-                crate::CHASSIS_GROUP,
-                crate::STATIC_GROUP | crate::CHASSIS_GROUP
-            ),
-            collider_mass_properties: ColliderMassProperties::Mass(CHASSIS_MASS),
-        }
-    }    
-}
-
-#[derive(Bundle)]
-struct WheelPhysicsBundle {
-    rigid_body: RigidBody,
-    collider: Collider,
-    collision_groups: CollisionGroups,
-    collider_mass_properties: ColliderMassProperties,
-    joint: ImpulseJoint,
-    sleeping: Sleeping
-}
-
-impl WheelPhysicsBundle {
-    fn new(chassis: Entity, joint: impl Into<GenericJoint>) -> WheelPhysicsBundle {
-        WheelPhysicsBundle {
-            rigid_body: RigidBody::Dynamic,
-            collider: Collider::cylinder(WHEEL_WIDTH * 0.5, WHEEL_RADIUS),
-            collision_groups: CollisionGroups::new(
-                crate::CHASSIS_INTERNAL_GROUP,
-                crate::STATIC_GROUP
-            ),
-            collider_mass_properties: ColliderMassProperties::Mass(WHEEL_MASS),
-            joint: ImpulseJoint::new(chassis, joint.into()),
-            sleeping: Default::default(),
-        }
-    }
-}
-
 pub fn spawn(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     transform: &Transform,
 ) {
-    commands.spawn(SpatialBundle::default())
+    commands.spawn(Transform::IDENTITY)
         .with_children(|commands| {
             /* spawn the chassis */
             let chassis_transform = *transform
                 * Transform::from_xyz(0.0, 0.5 * CHASSIS_HEIGHT + CHASSIS_HEIGHT_OFFSET, 0.0);
-            let chassis = commands.spawn_empty()
-                .insert(SpatialBundle::from_transform(chassis_transform))
-                .insert(ChassisPhysicsBundle::default())
-                .insert(DraggableBundle::default())
-                .insert(asset_server.load::<Scene>("robots/turtlebot4.glb#Scene0"))
-                .id();
+            let chassis = commands.spawn((
+                Transform::from_matrix(chassis_transform.compute_matrix()),
+                RigidBody::Dynamic,
+                Collider::cylinder(0.5 * CHASSIS_HEIGHT, CHASSIS_RADIUS),
+                CollisionGroups::new(
+                    crate::CHASSIS_GROUP,
+                    crate::STATIC_GROUP | crate::CHASSIS_GROUP
+                ),
+                ColliderMassProperties::Mass(CHASSIS_MASS),
+                asset_server.load::<bevy::scene::Scene>("robots/turtlebot4.glb#Scene0"),
+            )).id();
+            
             /* spawn the left wheel */
             let left_wheel_transform = *transform *
                 Transform::from_xyz(WHEEL_OFFSET_X, WHEEL_RADIUS, -WHEEL_OFFSET_Z)
@@ -118,10 +74,23 @@ pub fn spawn(
                 .local_axis1(Vec3::NEG_Z)
                 .local_axis2(Vec3::Y)
                 .local_anchor1(Vec3::new(0.0, -0.5 * CHASSIS_HEIGHT - CHASSIS_HEIGHT_OFFSET + WHEEL_RADIUS, -WHEEL_OFFSET_Z)) // base
-                .local_anchor2(Vec3::new(0.0, 0.0, 0.0));
-            commands.spawn(Wheel::Left)
-                .insert(SpatialBundle::from_transform(left_wheel_transform))
-                .insert(WheelPhysicsBundle::new(chassis, left_wheel_joint));
+                .local_anchor2(Vec3::new(0.0, 0.0, 0.0))
+                .build();
+                
+            commands.spawn((
+                Wheel::Left,
+                Transform::from_matrix(left_wheel_transform.compute_matrix()),
+                RigidBody::Dynamic,
+                Collider::cylinder(WHEEL_WIDTH * 0.5, WHEEL_RADIUS),
+                CollisionGroups::new(
+                    crate::CHASSIS_INTERNAL_GROUP,
+                    crate::STATIC_GROUP
+                ),
+                ColliderMassProperties::Mass(WHEEL_MASS),
+                ImpulseJoint::new(chassis, left_wheel_joint),
+                Sleeping::default(),
+            ));
+            
             /* spawn the right wheel */
             let right_wheel_transform = *transform *
                 Transform::from_xyz(WHEEL_OFFSET_X, WHEEL_RADIUS, WHEEL_OFFSET_Z)
@@ -130,9 +99,21 @@ pub fn spawn(
                 .local_axis1(Vec3::Z)
                 .local_axis2(Vec3::Y)
                 .local_anchor1(Vec3::new(0.0, -0.5 * CHASSIS_HEIGHT - CHASSIS_HEIGHT_OFFSET + WHEEL_RADIUS, WHEEL_OFFSET_Z)) // base
-                .local_anchor2(Vec3::new(0.0, 0.0, 0.0));
-            commands.spawn(Wheel::Right)
-                .insert(SpatialBundle::from_transform(right_wheel_transform))
-                .insert(WheelPhysicsBundle::new(chassis, right_wheel_joint));
+                .local_anchor2(Vec3::new(0.0, 0.0, 0.0))
+                .build();
+                
+            commands.spawn((
+                Wheel::Right,
+                Transform::from_matrix(right_wheel_transform.compute_matrix()),
+                RigidBody::Dynamic,
+                Collider::cylinder(WHEEL_WIDTH * 0.5, WHEEL_RADIUS),
+                CollisionGroups::new(
+                    crate::CHASSIS_INTERNAL_GROUP,
+                    crate::STATIC_GROUP
+                ),
+                ColliderMassProperties::Mass(WHEEL_MASS),
+                ImpulseJoint::new(chassis, right_wheel_joint),
+                Sleeping::default(),
+            ));
         });
 }
