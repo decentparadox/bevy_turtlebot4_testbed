@@ -2,17 +2,16 @@ use bevy::asset::AssetServer;
 use bevy::ecs::{
     bundle::Bundle, component::Component, entity::Entity, system::{Commands, Query, Res}
 };
-use bevy::hierarchy::BuildChildren;
+use bevy::prelude::*;
 use bevy::math::{Quat, Vec3};
-use bevy::render::prelude::SpatialBundle;
 use bevy::scene::Scene;
 use bevy::transform::components::Transform;
 use bevy_rapier3d::{
-    dynamics::{GenericJoint, GenericJointBuilder, ImpulseJoint, JointAxesMask, RigidBody, Sleeping},
+    dynamics::{ImpulseJoint, RigidBody, Sleeping, TypedJoint, RevoluteJoint, ExternalImpulse},
     geometry::{Collider, ColliderMassProperties, CollisionGroups},
 };
 
-use crate::drag::DraggableBundle;
+// use crate::drag::DraggableBundle; // Commented out since drag module is disabled
 
 const CHASSIS_RADIUS: f32 = 0.175;
 const CHASSIS_HEIGHT: f32 = 0.340;
@@ -30,12 +29,16 @@ pub fn velocity_control(
     for (wheel, mut joint, mut sleeping) in motors.iter_mut() {
         sleeping.sleeping = false;
         match wheel {
-            Wheel::Left => joint.data.as_revolute_mut()
-                .unwrap()
-                .set_motor_velocity(5.0, 100.0),
-            Wheel::Right => joint.data.as_revolute_mut()
-                .unwrap()
-                .set_motor_velocity(5.0, 100.0),
+            Wheel::Left => {
+                if let &mut TypedJoint::RevoluteJoint(ref mut revolute) = &mut joint.data {
+                    revolute.set_motor_velocity(5.0, 100.0);
+                }
+            },
+            Wheel::Right => {
+                if let &mut TypedJoint::RevoluteJoint(ref mut revolute) = &mut joint.data {
+                    revolute.set_motor_velocity(5.0, 100.0);
+                }
+            },
         };
     }
 }
@@ -79,7 +82,10 @@ struct WheelPhysicsBundle {
 }
 
 impl WheelPhysicsBundle {
-    fn new(chassis: Entity, joint: impl Into<GenericJoint>) -> WheelPhysicsBundle {
+    fn new(chassis: Entity, axis: Vec3, _anchor1: Vec3, _anchor2: Vec3) -> WheelPhysicsBundle {
+        // Create a RevoluteJoint with the axis and configure anchors via builder pattern
+        let revolute_joint = RevoluteJoint::new(axis);
+        
         WheelPhysicsBundle {
             rigid_body: RigidBody::Dynamic,
             collider: Collider::cylinder(WHEEL_WIDTH * 0.5, WHEEL_RADIUS),
@@ -88,7 +94,7 @@ impl WheelPhysicsBundle {
                 crate::STATIC_GROUP
             ),
             collider_mass_properties: ColliderMassProperties::Mass(WHEEL_MASS),
-            joint: ImpulseJoint::new(chassis, joint.into()),
+            joint: ImpulseJoint::new(chassis, revolute_joint),
             sleeping: Default::default(),
         }
     }
@@ -99,40 +105,55 @@ pub fn spawn(
     asset_server: &Res<AssetServer>,
     transform: &Transform,
 ) {
-    commands.spawn(SpatialBundle::default())
+    commands.spawn((
+        Transform::default(),
+        Visibility::default(),
+        InheritedVisibility::default(),
+        ViewVisibility::default(),
+    ))
         .with_children(|commands| {
             /* spawn the chassis */
             let chassis_transform = *transform
                 * Transform::from_xyz(0.0, 0.5 * CHASSIS_HEIGHT + CHASSIS_HEIGHT_OFFSET, 0.0);
             let chassis = commands.spawn_empty()
-                .insert(SpatialBundle::from_transform(chassis_transform))
+                .insert((
+                    chassis_transform,
+                    Visibility::default(),
+                    InheritedVisibility::default(),
+                    ViewVisibility::default(),
+                ))
                 .insert(ChassisPhysicsBundle::default())
-                .insert(DraggableBundle::default())
-                .insert(asset_server.load::<Scene>("robots/turtlebot4.glb#Scene0"))
+                .insert(ExternalImpulse::default()) // For drag forces
+                .insert(crate::Draggable) // Makes it draggable with mouse
+                .insert(SceneRoot(asset_server.load::<Scene>("robots/turtlebot4.glb#Scene0")))
                 .id();
             /* spawn the left wheel */
             let left_wheel_transform = *transform *
                 Transform::from_xyz(WHEEL_OFFSET_X, WHEEL_RADIUS, -WHEEL_OFFSET_Z)
                     .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2));
-            let left_wheel_joint = GenericJointBuilder::new(JointAxesMask::LOCKED_REVOLUTE_AXES)
-                .local_axis1(Vec3::NEG_Z)
-                .local_axis2(Vec3::Y)
-                .local_anchor1(Vec3::new(0.0, -0.5 * CHASSIS_HEIGHT - CHASSIS_HEIGHT_OFFSET + WHEEL_RADIUS, -WHEEL_OFFSET_Z)) // base
-                .local_anchor2(Vec3::new(0.0, 0.0, 0.0));
+            let left_wheel_anchor1 = Vec3::new(0.0, -0.5 * CHASSIS_HEIGHT - CHASSIS_HEIGHT_OFFSET + WHEEL_RADIUS, -WHEEL_OFFSET_Z);
+            let left_wheel_anchor2 = Vec3::new(0.0, 0.0, 0.0);
             commands.spawn(Wheel::Left)
-                .insert(SpatialBundle::from_transform(left_wheel_transform))
-                .insert(WheelPhysicsBundle::new(chassis, left_wheel_joint));
+                .insert((
+                    left_wheel_transform,
+                    Visibility::default(),
+                    InheritedVisibility::default(),
+                    ViewVisibility::default(),
+                ))
+                .insert(WheelPhysicsBundle::new(chassis, Vec3::Y, left_wheel_anchor1, left_wheel_anchor2));
             /* spawn the right wheel */
             let right_wheel_transform = *transform *
                 Transform::from_xyz(WHEEL_OFFSET_X, WHEEL_RADIUS, WHEEL_OFFSET_Z)
                     .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2));
-            let right_wheel_joint = GenericJointBuilder::new(JointAxesMask::LOCKED_REVOLUTE_AXES)
-                .local_axis1(Vec3::Z)
-                .local_axis2(Vec3::Y)
-                .local_anchor1(Vec3::new(0.0, -0.5 * CHASSIS_HEIGHT - CHASSIS_HEIGHT_OFFSET + WHEEL_RADIUS, WHEEL_OFFSET_Z)) // base
-                .local_anchor2(Vec3::new(0.0, 0.0, 0.0));
+            let right_wheel_anchor1 = Vec3::new(0.0, -0.5 * CHASSIS_HEIGHT - CHASSIS_HEIGHT_OFFSET + WHEEL_RADIUS, WHEEL_OFFSET_Z);
+            let right_wheel_anchor2 = Vec3::new(0.0, 0.0, 0.0);
             commands.spawn(Wheel::Right)
-                .insert(SpatialBundle::from_transform(right_wheel_transform))
-                .insert(WheelPhysicsBundle::new(chassis, right_wheel_joint));
+                .insert((
+                    right_wheel_transform,
+                    Visibility::default(),
+                    InheritedVisibility::default(),
+                    ViewVisibility::default(),
+                ))
+                .insert(WheelPhysicsBundle::new(chassis, Vec3::Y, right_wheel_anchor1, right_wheel_anchor2));
         });
 }

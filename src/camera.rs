@@ -151,6 +151,6 @@ pub fn update_camera_system(
 }
 
 fn get_primary_window_size(windows: &Query<&Window, With<PrimaryWindow>>) -> Vec2 {
-    let window = windows.get_single().unwrap();
+    let window = windows.single().expect("Failed to get primary window");
     Vec2::new(window.width(), window.height())
 }
