@@ -125,7 +125,11 @@ pub fn spawn(
                 .insert(ChassisPhysicsBundle::default())
                 .insert(ExternalImpulse::default()) // For drag forces
                 .insert(crate::Draggable) // Makes it draggable with mouse
+                .insert(Pickable::default()) // Makes it pickable for Bevy 0.16 picking system
                 .insert(SceneRoot(asset_server.load::<Scene>("robots/turtlebot4.glb#Scene0")))
+                // Add observers for mouse interaction
+                .observe(crate::on_drag_robot)
+                .observe(crate::on_click_robot)
                 .id();
             /* spawn the left wheel */
             let left_wheel_transform = *transform *

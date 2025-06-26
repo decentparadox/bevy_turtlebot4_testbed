@@ -18,36 +18,40 @@ const CHASSIS_GROUP: Group = Group::GROUP_3;
 #[derive(Component)]
 struct Draggable;
 
-// Simple keyboard-based control system for dragging the turtlebot
-fn keyboard_control_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
+// Observer system for handling drag events on the turtlebot
+fn on_drag_robot(
+    drag: Trigger<Pointer<Drag>>,
+    mut draggable_objects: Query<&mut ExternalImpulse, With<Draggable>>,
+    camera_query: Query<&Transform, (With<Camera3d>, Without<Draggable>)>,
+) {
+    if let Ok(mut impulse) = draggable_objects.get_mut(drag.target()) {
+        if let Ok(camera_transform) = camera_query.get_single() {
+            // Get camera's right and forward vectors (in XZ plane)
+            let camera_right = camera_transform.right();
+            let camera_forward = camera_transform.forward();
+            
+            // Project vectors onto XZ plane and normalize
+            let camera_right_xz = Vec3::new(camera_right.x, 0.0, camera_right.z).normalize();
+            let camera_forward_xz = Vec3::new(camera_forward.x, 0.0, camera_forward.z).normalize();
+            
+            // Transform mouse delta relative to camera orientation
+            let force_multiplier = 0.05;
+            let force = camera_right_xz * drag.delta.x * force_multiplier 
+                      - camera_forward_xz * drag.delta.y * force_multiplier; // Negative because forward drag should move forward
+            
+            impulse.impulse = force;
+        }
+    }
+}
+
+// Observer system for handling click events on the turtlebot
+fn on_click_robot(
+    _click: Trigger<Pointer<Click>>,
     mut draggable_objects: Query<&mut ExternalImpulse, With<Draggable>>,
 ) {
+    // Apply upward impulse when clicked
     for mut impulse in draggable_objects.iter_mut() {
-        let mut force = Vec3::ZERO;
-        
-        // WASD for movement
-        if keyboard.pressed(KeyCode::KeyW) {
-            force.z -= 10.0;
-        }
-        if keyboard.pressed(KeyCode::KeyS) {
-            force.z += 10.0;
-        }
-        if keyboard.pressed(KeyCode::KeyA) {
-            force.x -= 10.0;
-        }
-        if keyboard.pressed(KeyCode::KeyD) {
-            force.x += 10.0;
-        }
-        // Space for up, Shift for down
-        if keyboard.pressed(KeyCode::Space) {
-            force.y += 10.0;
-        }
-        if keyboard.pressed(KeyCode::ShiftLeft) {
-            force.y -= 10.0;
-        }
-        
-        impulse.impulse = force;
+        impulse.impulse = Vec3::new(0.0, 100.0, 0.0);
     }
 }
 
@@ -62,10 +66,11 @@ pub fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
+        // Add the MeshPickingPlugin for 3D mesh picking
+        .add_plugins(MeshPickingPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, (camera::update_camera_system, camera::accumulate_mouse_events_system))
         .add_systems(Update, render_origin)
-        .add_systems(Update, keyboard_control_system)
         .run();
 }
 
