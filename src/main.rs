@@ -1,6 +1,4 @@
 use bevy::prelude::*;
-use bevy::input::mouse::MouseButtonInput;
-use bevy::window::PrimaryWindow;
 use bevy_rapier3d::{
     geometry::{Collider, CollisionGroups, Group},
     plugin::{NoUserData, RapierPhysicsPlugin},
@@ -10,6 +8,7 @@ use bevy_rapier3d::{
 
 mod turtlebot4;
 mod camera;
+mod camera_sensor;
 
 const STATIC_GROUP: Group = Group::GROUP_1;
 const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
@@ -18,14 +17,38 @@ const CHASSIS_GROUP: Group = Group::GROUP_3;
 #[derive(Component)]
 struct Draggable;
 
+// Debug system to check draggable entities (runs once)
+fn debug_draggable_entities(
+    draggable_query: Query<Entity, With<Draggable>>,
+    transform_query: Query<&Transform>,
+    pickable_query: Query<&Pickable>,
+    mesh_query: Query<&Mesh3d>,
+    mut ran: Local<bool>,
+) {
+    if !*ran && !draggable_query.is_empty() {
+        *ran = true;
+        for entity in draggable_query.iter() {
+            let has_transform = transform_query.get(entity).is_ok();
+            let has_pickable = pickable_query.get(entity).is_ok();
+            let has_mesh = mesh_query.get(entity).is_ok();
+            
+            info!("Draggable entity {:?}: Transform={}, Pickable={}, Mesh3d={}", 
+                  entity, has_transform, has_pickable, has_mesh);
+        }
+    }
+}
+
 // Observer system for handling drag events on the turtlebot
 fn on_drag_robot(
     drag: Trigger<Pointer<Drag>>,
     mut draggable_objects: Query<&mut ExternalImpulse, With<Draggable>>,
     camera_query: Query<&Transform, (With<Camera3d>, Without<Draggable>)>,
 ) {
+    info!("Drag event triggered! Target: {:?}, Delta: {:?}", drag.target(), drag.delta);
+    
     if let Ok(mut impulse) = draggable_objects.get_mut(drag.target()) {
-        if let Ok(camera_transform) = camera_query.get_single() {
+        info!("Found draggable object, applying force");
+        if let Ok(camera_transform) = camera_query.single() {
             // Get camera's right and forward vectors (in XZ plane)
             let camera_right = camera_transform.right();
             let camera_forward = camera_transform.forward();
@@ -40,18 +63,24 @@ fn on_drag_robot(
                       - camera_forward_xz * drag.delta.y * force_multiplier; // Negative because forward drag should move forward
             
             impulse.impulse = force;
+            info!("Applied force: {:?}", force);
         }
+    } else {
+        warn!("Could not find draggable object for entity {:?}", drag.target());
     }
 }
 
 // Observer system for handling click events on the turtlebot
 fn on_click_robot(
-    _click: Trigger<Pointer<Click>>,
+    click: Trigger<Pointer<Click>>,
     mut draggable_objects: Query<&mut ExternalImpulse, With<Draggable>>,
 ) {
+    info!("Click event triggered! Target: {:?}", click.target());
+    
     // Apply upward impulse when clicked
     for mut impulse in draggable_objects.iter_mut() {
         impulse.impulse = Vec3::new(0.0, 100.0, 0.0);
+        info!("Applied upward impulse to robot");
     }
 }
 
@@ -66,10 +95,17 @@ pub fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
-        // Add the MeshPickingPlugin for 3D mesh picking
-        .add_plugins(MeshPickingPlugin)
-        .add_systems(Startup, setup)
-        .add_systems(Update, (camera::update_camera_system, camera::accumulate_mouse_events_system))
+        // Note: Picking plugins are already included in DefaultPlugins in Bevy 0.16       
+        .add_systems(Startup, (setup, camera_sensor::setup_camera_preview_window))
+        .add_systems(Update, (
+            camera::update_camera_system, 
+            camera::accumulate_mouse_events_system,
+            camera_sensor::display_camera_preview,
+            camera_sensor::update_camera_intrinsics,
+            camera_sensor::debug_camera_pose,
+            debug_draggable_entities, // Debug system
+        ))
+        .add_systems(PostStartup, camera_sensor::setup_robot_camera_once)
         .add_systems(Update, render_origin)
         .run();
 }
