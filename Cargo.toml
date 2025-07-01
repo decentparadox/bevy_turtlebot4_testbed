@@ -1,10 +1,29 @@
 [package]
 name = "bevy_turtlebot4_testbed"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-bevy = { version = "0.15", features = ["wayland", "dynamic_linking", "jpeg"] }
+bevy = { version = "0.16", features = [
+    "bevy_asset",
+    "bevy_core_pipeline", 
+    "bevy_pbr",
+    "bevy_picking",
+    "bevy_mesh_picking_backend",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_winit",
+    "bevy_scene",
+    "bevy_gltf",
+    "multi_threaded",
+    "png",
+    "hdr",
+    "x11",
+    "jpeg",
+    "dynamic_linking"
+], default-features = false }
 bevy_rapier3d = { version = "0.30.0", features = ["debug-render-3d"] }
 tracing = "0.1"
 

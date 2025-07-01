@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::input::mouse::{MouseWheel,MouseMotion};
+use bevy::input::mouse::{MouseWheel, MouseMotion};
 use bevy::render::camera::Projection;
 use bevy::window::{PrimaryWindow, Window};
 

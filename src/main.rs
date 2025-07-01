@@ -1,11 +1,12 @@
 use bevy::prelude::*;
-use bevy::picking::DefaultPickingPlugins;
+use bevy::input::mouse::{MouseMotion, MouseWheel};
+use bevy::picking::mesh_picking::MeshPickingPlugin;
 use bevy_rapier3d::{
     geometry::{Collider, CollisionGroups, Group},
     plugin::{NoUserData, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
-    dynamics::ExternalImpulse,
 };
+use tracing::info;
 
 mod turtlebot4;
 mod camera;
@@ -117,8 +118,8 @@ pub fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
-        // Add picking plugins for 3D object interaction
-        .add_plugins(DefaultPickingPlugins)
+        // Add mesh picking plugin for 3D object interaction
+        .add_plugins(MeshPickingPlugin)
         .add_systems(Startup, (setup, camera_sensor::setup_camera_preview_window))
         .add_systems(Update, (
             manage_camera_controls,

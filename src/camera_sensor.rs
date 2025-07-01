@@ -4,6 +4,7 @@ use bevy::render::render_resource::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 };
 use bevy::window::{Window, WindowPosition, WindowRef};
+use tracing::{info, warn, debug};
 
 /// Camera intrinsic parameters based on pinhole camera model
 /// Following OpenCV convention: camera matrix K = [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]
