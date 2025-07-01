@@ -4,7 +4,6 @@ use bevy::render::render_resource::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 };
 use bevy::window::{Window, WindowPosition, WindowRef};
-use tracing::{info, warn, debug};
 
 /// Camera intrinsic parameters based on pinhole camera model
 /// Following OpenCV convention: camera matrix K = [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]
@@ -93,11 +92,10 @@ pub fn setup_camera_preview_window(mut commands: Commands) {
 pub fn setup_robot_camera_once(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
-    // Look for the robot chassis which has our Draggable marker
     chassis_query: Query<Entity, (With<crate::Draggable>, Without<RobotCameraSensor>)>,
     mut preview_window: ResMut<CameraPreviewWindow>,
 ) {
-    // Find the chassis entity (which has the draggable component)
+    // Find the chassis entity (which has the draggable components)
     if let Ok(chassis_entity) = chassis_query.single() {
         let intrinsics = CameraIntrinsics::default();
         
@@ -139,8 +137,7 @@ pub fn setup_robot_camera_once(
                     ..default()
                 },
                 // Camera positioned at front-top of robot, looking forward
-                // Adjusted position to be more realistic for a TurtleBot4
-                Transform::from_xyz(0.1, 0.15, 0.0)
+                Transform::from_xyz(0.15, 0.1, 0.0)
                     .looking_at(Vec3::new(1.0, 0.0, 0.0), Vec3::Y),
                 Visibility::default(),
                 InheritedVisibility::default(),
@@ -151,10 +148,12 @@ pub fn setup_robot_camera_once(
         // Update preview window resource with image handle
         preview_window.image = image_handle;
         
-        info!("Robot camera sensor setup complete! Camera intrinsics: fx={}, fy={}, cx={}, cy={}", 
-              intrinsics.fx, intrinsics.fy, intrinsics.cx, intrinsics.cy);
-    } else {
-        warn!("Could not find robot chassis to attach camera sensor");
+        info!("Robot camera sensor setup complete!");
+        
+        // Debug: Check what components the chassis still has
+        if let Ok(_entity_ref) = commands.get_entity(chassis_entity) {
+            info!("Chassis entity after camera setup still exists");
+        }
     }
 }
 
@@ -218,40 +217,22 @@ pub fn update_camera_intrinsics(
     if let Ok((mut intrinsics, mut projection)) = camera_query.single_mut() {
         let mut changed = false;
         
-        // Allow runtime adjustment of camera parameters using number keys
-        if keyboard.pressed(KeyCode::Equal) || keyboard.pressed(KeyCode::NumpadAdd) {
+        // Allow runtime adjustment of camera parameters
+        if keyboard.pressed(KeyCode::Equal) {
             intrinsics.fx += 10.0;
             intrinsics.fy += 10.0;
             changed = true;
         }
-        if keyboard.pressed(KeyCode::Minus) || keyboard.pressed(KeyCode::NumpadSubtract) {
+        if keyboard.pressed(KeyCode::Minus) {
             intrinsics.fx = (intrinsics.fx - 10.0).max(100.0);
             intrinsics.fy = (intrinsics.fy - 10.0).max(100.0);
-            changed = true;
-        }
-        
-        // Principal point adjustments
-        if keyboard.pressed(KeyCode::ArrowLeft) {
-            intrinsics.cx = (intrinsics.cx - 5.0).max(0.0);
-            changed = true;
-        }
-        if keyboard.pressed(KeyCode::ArrowRight) {
-            intrinsics.cx = (intrinsics.cx + 5.0).min(intrinsics.width as f32);
-            changed = true;
-        }
-        if keyboard.pressed(KeyCode::ArrowUp) {
-            intrinsics.cy = (intrinsics.cy - 5.0).max(0.0);
-            changed = true;
-        }
-        if keyboard.pressed(KeyCode::ArrowDown) {
-            intrinsics.cy = (intrinsics.cy + 5.0).min(intrinsics.height as f32);
             changed = true;
         }
         
         // Update projection when intrinsics change
         if changed {
             *projection = intrinsics.to_perspective_projection();
-            info!("Camera intrinsics updated: fx={:.1}, fy={:.1}, cx={:.1}, cy={:.1}", 
+            info!("Camera intrinsics updated: fx={}, fy={}, cx={}, cy={}", 
                   intrinsics.fx, intrinsics.fy, intrinsics.cx, intrinsics.cy);
         }
     }
@@ -264,7 +245,7 @@ pub fn debug_camera_pose(
     for transform in camera_query.iter() {
         let translation = transform.translation();
         let rotation = transform.to_scale_rotation_translation().1;
-        debug!("Robot Camera pose - Position: ({:.2}, {:.2}, {:.2}), Rotation: ({:.2}, {:.2}, {:.2}, {:.2})",
+        debug!("Camera pose - Position: ({:.2}, {:.2}, {:.2}), Rotation: ({:.2}, {:.2}, {:.2}, {:.2})",
                translation.x, translation.y, translation.z,
                rotation.x, rotation.y, rotation.z, rotation.w);
     }
