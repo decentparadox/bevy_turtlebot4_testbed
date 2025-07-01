@@ -1,10 +1,10 @@
 [package]
 name = "bevy_turtlebot4_testbed"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-bevy = { version = "0.16", features = ["wayland", "dynamic_linking", "jpeg"] }
+bevy = { version = "0.15", features = ["wayland", "dynamic_linking", "jpeg"] }
 bevy_rapier3d = { version = "0.30.0", features = ["debug-render-3d"] }
 tracing = "0.1"
 

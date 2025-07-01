@@ -34,47 +34,9 @@ impl Default for PanOrbitCamera {
     }
 }
 
-pub fn accumulate_mouse_events_system(
-    mut ev_motion: EventReader<MouseMotion>,
-    mut ev_scroll: EventReader<MouseWheel>,
-    input_mouse: Res<ButtonInput<MouseButton>>,
-    mut query: Query<&mut PanOrbitCamera>,
-) {
-    // need to accumulate these and apply them to all cameras
-    let mut pan = Vec2::ZERO;
-    let mut rotation_move = Vec2::ZERO;
-    let mut scroll = 0.0;
-    let mut orbit_button_changed = false;
-    
-    let orbit_button = MouseButton::Right;
-    let pan_button = MouseButton::Middle;
-
-    if input_mouse.pressed(orbit_button) {
-        for ev in ev_motion.read() {
-            rotation_move += ev.delta;
-        }
-    } else if input_mouse.pressed(pan_button) {
-        // Pan only if we're not rotating at the moment
-        for ev in ev_motion.read() {
-            pan += ev.delta;
-        }
-    }
-    for ev in ev_scroll.read() {
-        scroll += ev.y;
-    }
-    if input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button) {
-        orbit_button_changed = true;
-    }
-
-    for mut camera in query.iter_mut() {
-        camera.orbit_button_changed |= orbit_button_changed;
-        camera.pan += 2.0 * pan;
-        camera.rotation_move += 2.0 * rotation_move;
-        camera.scroll += 2.0 * scroll;
-    }
-
-    ev_motion.clear();
-}
+/// Component to mark entities that are currently being dragged
+#[derive(Component)]
+pub struct DragTarget;
 
 /// Pan the camera with middle mouse click, zoom with scroll wheel, orbit with right mouse click.
 pub fn update_camera_system(

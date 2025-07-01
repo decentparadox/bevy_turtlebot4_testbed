@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::picking::DefaultPickingPlugins;
 use bevy_rapier3d::{
     geometry::{Collider, CollisionGroups, Group},
     plugin::{NoUserData, RapierPhysicsPlugin},
@@ -9,6 +10,7 @@ use bevy_rapier3d::{
 mod turtlebot4;
 mod camera;
 mod camera_sensor;
+mod drag;
 
 const STATIC_GROUP: Group = Group::GROUP_1;
 const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
@@ -17,71 +19,91 @@ const CHASSIS_GROUP: Group = Group::GROUP_3;
 #[derive(Component)]
 struct Draggable;
 
-// Debug system to check draggable entities (runs once)
-fn debug_draggable_entities(
-    draggable_query: Query<Entity, With<Draggable>>,
-    transform_query: Query<&Transform>,
-    pickable_query: Query<&Pickable>,
-    mesh_query: Query<&Mesh3d>,
-    mut ran: Local<bool>,
+/// Component to control camera input behavior
+#[derive(Component)]
+struct CameraController {
+    enabled: bool,
+}
+
+impl Default for CameraController {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+// System to toggle camera controls when dragging objects
+fn manage_camera_controls(
+    dragging_query: Query<Entity, (With<Draggable>, With<camera::DragTarget>)>,
+    mut camera_query: Query<&mut CameraController, With<camera::PanOrbitCamera>>,
+    input: Res<ButtonInput<KeyCode>>,
 ) {
-    if !*ran && !draggable_query.is_empty() {
-        *ran = true;
-        for entity in draggable_query.iter() {
-            let has_transform = transform_query.get(entity).is_ok();
-            let has_pickable = pickable_query.get(entity).is_ok();
-            let has_mesh = mesh_query.get(entity).is_ok();
-            
-            info!("Draggable entity {:?}: Transform={}, Pickable={}, Mesh3d={}", 
-                  entity, has_transform, has_pickable, has_mesh);
+    let is_dragging = !dragging_query.is_empty();
+    
+    for mut controller in camera_query.iter_mut() {
+        // Disable camera when dragging objects, enable when not
+        controller.enabled = !is_dragging;
+    }
+    
+    // Allow manual toggle with C key for debugging
+    if input.just_pressed(KeyCode::KeyC) {
+        for mut controller in camera_query.iter_mut() {
+            controller.enabled = !controller.enabled;
+            info!("Camera controls {}", if controller.enabled { "enabled" } else { "disabled" });
         }
     }
 }
 
-// Observer system for handling drag events on the turtlebot
-fn on_drag_robot(
-    drag: Trigger<Pointer<Drag>>,
-    mut draggable_objects: Query<&mut ExternalImpulse, With<Draggable>>,
-    camera_query: Query<&Transform, (With<Camera3d>, Without<Draggable>)>,
+// Modified accumulate system that respects camera controller
+fn accumulate_mouse_events_system(
+    mut ev_motion: EventReader<MouseMotion>,
+    mut ev_scroll: EventReader<MouseWheel>,
+    input_mouse: Res<ButtonInput<MouseButton>>,
+    mut query: Query<(&mut camera::PanOrbitCamera, &CameraController)>,
 ) {
-    info!("Drag event triggered! Target: {:?}, Delta: {:?}", drag.target(), drag.delta);
+    // Check if any camera controller allows input
+    let camera_enabled = query.iter().any(|(_, controller)| controller.enabled);
     
-    if let Ok(mut impulse) = draggable_objects.get_mut(drag.target()) {
-        info!("Found draggable object, applying force");
-        if let Ok(camera_transform) = camera_query.single() {
-            // Get camera's right and forward vectors (in XZ plane)
-            let camera_right = camera_transform.right();
-            let camera_forward = camera_transform.forward();
-            
-            // Project vectors onto XZ plane and normalize
-            let camera_right_xz = Vec3::new(camera_right.x, 0.0, camera_right.z).normalize();
-            let camera_forward_xz = Vec3::new(camera_forward.x, 0.0, camera_forward.z).normalize();
-            
-            // Transform mouse delta relative to camera orientation
-            let force_multiplier = 0.05;
-            let force = camera_right_xz * drag.delta.x * force_multiplier 
-                      - camera_forward_xz * drag.delta.y * force_multiplier; // Negative because forward drag should move forward
-            
-            impulse.impulse = force;
-            info!("Applied force: {:?}", force);
-        }
-    } else {
-        warn!("Could not find draggable object for entity {:?}", drag.target());
+    if !camera_enabled {
+        // Clear events but don't process them
+        ev_motion.clear();
+        return;
     }
-}
+    
+    // Rest of the existing logic
+    let mut pan = Vec2::ZERO;
+    let mut rotation_move = Vec2::ZERO;
+    let mut scroll = 0.0;
+    let mut orbit_button_changed = false;
+    
+    let orbit_button = MouseButton::Right;
+    let pan_button = MouseButton::Middle;
 
-// Observer system for handling click events on the turtlebot
-fn on_click_robot(
-    click: Trigger<Pointer<Click>>,
-    mut draggable_objects: Query<&mut ExternalImpulse, With<Draggable>>,
-) {
-    info!("Click event triggered! Target: {:?}", click.target());
-    
-    // Apply upward impulse when clicked
-    for mut impulse in draggable_objects.iter_mut() {
-        impulse.impulse = Vec3::new(0.0, 100.0, 0.0);
-        info!("Applied upward impulse to robot");
+    if input_mouse.pressed(orbit_button) {
+        for ev in ev_motion.read() {
+            rotation_move += ev.delta;
+        }
+    } else if input_mouse.pressed(pan_button) {
+        for ev in ev_motion.read() {
+            pan += ev.delta;
+        }
     }
+    for ev in ev_scroll.read() {
+        scroll += ev.y;
+    }
+    if input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button) {
+        orbit_button_changed = true;
+    }
+
+    for (mut camera, controller) in query.iter_mut() {
+        if controller.enabled {
+            camera.orbit_button_changed |= orbit_button_changed;
+            camera.pan += 2.0 * pan;
+            camera.rotation_move += 2.0 * rotation_move;
+            camera.scroll += 2.0 * scroll;
+        }
+    }
+
+    ev_motion.clear();
 }
 
 pub fn main() {
@@ -95,15 +117,16 @@ pub fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
-        // Note: Picking plugins are already included in DefaultPlugins in Bevy 0.16       
+        // Add picking plugins for 3D object interaction
+        .add_plugins(DefaultPickingPlugins)
         .add_systems(Startup, (setup, camera_sensor::setup_camera_preview_window))
         .add_systems(Update, (
+            manage_camera_controls,
+            accumulate_mouse_events_system,
             camera::update_camera_system, 
-            camera::accumulate_mouse_events_system,
             camera_sensor::display_camera_preview,
             camera_sensor::update_camera_intrinsics,
             camera_sensor::debug_camera_pose,
-            debug_draggable_entities, // Debug system
         ))
         .add_systems(PostStartup, camera_sensor::setup_robot_camera_once)
         .add_systems(Update, render_origin)
@@ -140,6 +163,7 @@ fn setup(
             radius: translation.length(),
             ..default()
         })
+        .insert(CameraController::default())
         .with_children(|commands| {
             commands.spawn((
                 DirectionalLight {
