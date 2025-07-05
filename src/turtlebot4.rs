@@ -1,17 +1,15 @@
 use bevy::asset::AssetServer;
 use bevy::ecs::{
-    bundle::Bundle, component::Component, entity::Entity, system::{Commands, Query, Res}
+    bundle::Bundle, component::Component, entity::Entity, system::{Commands, Res}
 };
 use bevy::prelude::*;
 use bevy::math::{Quat, Vec3};
 use bevy::scene::Scene;
 use bevy::transform::components::Transform;
 use bevy_rapier3d::{
-    dynamics::{ImpulseJoint, RigidBody, Sleeping, TypedJoint, RevoluteJoint, ExternalImpulse},
+    dynamics::{ImpulseJoint, RigidBody, Sleeping, RevoluteJoint, ExternalImpulse, Velocity},
     geometry::{Collider, ColliderMassProperties, CollisionGroups},
 };
-
-// use crate::drag::DraggableBundle; // Commented out since drag module is disabled
 
 const CHASSIS_RADIUS: f32 = 0.175;
 const CHASSIS_HEIGHT: f32 = 0.340;
@@ -22,26 +20,6 @@ const WHEEL_WIDTH: f32 = 0.018;
 const WHEEL_OFFSET_X: f32 = 0.0;
 const WHEEL_OFFSET_Z: f32 = 0.1185;
 const WHEEL_MASS: f32 = 0.1;
-
-pub fn velocity_control(
-    mut motors: Query<(&Wheel, &mut ImpulseJoint, &mut Sleeping)>,
-) {
-    for (wheel, mut joint, mut sleeping) in motors.iter_mut() {
-        sleeping.sleeping = false;
-        match wheel {
-            Wheel::Left => {
-                if let &mut TypedJoint::RevoluteJoint(ref mut revolute) = &mut joint.data {
-                    revolute.set_motor_velocity(5.0, 100.0);
-                }
-            },
-            Wheel::Right => {
-                if let &mut TypedJoint::RevoluteJoint(ref mut revolute) = &mut joint.data {
-                    revolute.set_motor_velocity(5.0, 100.0);
-                }
-            },
-        };
-    }
-}
 
 #[derive(Component)]
 pub enum Wheel {
@@ -55,6 +33,7 @@ struct ChassisPhysicsBundle {
     collider: Collider,
     collision_groups: CollisionGroups,
     collider_mass_properties: ColliderMassProperties,
+    velocity: Velocity,
 }
 
 impl Default for ChassisPhysicsBundle {
@@ -67,6 +46,7 @@ impl Default for ChassisPhysicsBundle {
                 crate::STATIC_GROUP | crate::CHASSIS_GROUP
             ),
             collider_mass_properties: ColliderMassProperties::Mass(CHASSIS_MASS),
+            velocity: Velocity::default(),
         }
     }    
 }
@@ -123,13 +103,9 @@ pub fn spawn(
                     ViewVisibility::default(),
                 ))
                 .insert(ChassisPhysicsBundle::default())
-                .insert(ExternalImpulse::default()) // For drag forces
-                .insert(crate::Draggable) // Makes it draggable with mouse
-                .insert(Pickable::default()) // Makes it pickable for Bevy 0.16 picking system
+                .insert(ExternalImpulse::default()) // For applying movement forces
+                .insert(crate::RobotChassis) // Marker component for robot control
                 .insert(SceneRoot(asset_server.load::<Scene>("robots/turtlebot4.glb#Scene0")))
-                // Add observers for mouse interaction
-                .observe(crate::on_drag_robot)
-                .observe(crate::on_click_robot)
                 .id();
             /* spawn the left wheel */
             let left_wheel_transform = *transform *

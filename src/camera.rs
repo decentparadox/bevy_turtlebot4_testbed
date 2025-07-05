@@ -34,6 +34,20 @@ impl Default for PanOrbitCamera {
     }
 }
 
+/// System to update camera focus to follow robot position
+pub fn update_camera_focus_on_robot(
+    robot_query: Query<&Transform, (With<crate::RobotChassis>, Without<PanOrbitCamera>)>,
+    mut camera_query: Query<&mut PanOrbitCamera>,
+) {
+    if let Ok(robot_transform) = robot_query.single() {
+        for mut camera in camera_query.iter_mut() {
+            // Smoothly update camera focus to robot position
+            let target_focus = robot_transform.translation;
+            camera.focus = camera.focus.lerp(target_focus, 0.1); // Smooth following
+        }
+    }
+}
+
 pub fn accumulate_mouse_events_system(
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
