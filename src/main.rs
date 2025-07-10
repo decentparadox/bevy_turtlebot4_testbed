@@ -171,6 +171,8 @@ fn update_projection_from_robot(
 mod turtlebot4;
 mod camera;
 mod keyboard_controls;
+mod lidar;
+mod robot_drag;
 
 const STATIC_GROUP: Group = Group::GROUP_1;
 const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
@@ -189,7 +191,10 @@ pub fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
+        .add_plugins(lidar::LidarPlugin)
+        .add_plugins(robot_drag::RobotDragPlugin)
         .add_systems(Startup, (setup, setup_custom_projection_window))
+        .add_systems(Update, robot_drag::make_robot_draggable)
         .add_systems(Update, (
             camera::update_camera_system, 
             camera::accumulate_mouse_events_system,
@@ -198,6 +203,7 @@ pub fn main() {
             update_projection_from_robot,
             keyboard_controls::display_robot_controls_info,
             keyboard_controls::manual_adjust_oblique_projection,
+            keyboard_controls::toggle_lidar_visualization,
             render_origin,
         ))
         
