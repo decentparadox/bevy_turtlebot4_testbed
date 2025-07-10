@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::dynamics::ExternalImpulse;
 use bevy::render::camera::Projection;
 
-use crate::{RobotChassis, ObliqueProjectionController, ObliquePerspectiveProjection, camera::PanOrbitCamera};
+use crate::{RobotChassis, ObliqueProjectionController, ObliquePerspectiveProjection, camera::PanOrbitCamera, lidar::LidarSensor};
 
 /// System to control robot movement with camera-relative controls
 pub fn control_robot_movement(
@@ -94,6 +94,26 @@ pub fn manual_adjust_oblique_projection(
     }
 }
 
+/// System to toggle LIDAR visualization and logging
+pub fn toggle_lidar_visualization(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut lidar_query: Query<&mut LidarSensor>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyL) {
+        for mut lidar in lidar_query.iter_mut() {
+            lidar.visualize = !lidar.visualize;
+            info!("LIDAR visualization: {}", if lidar.visualize { "ON" } else { "OFF" });
+        }
+    }
+    
+    if keyboard.just_pressed(KeyCode::KeyO) {
+        for mut lidar in lidar_query.iter_mut() {
+            lidar.enable_logging = !lidar.enable_logging;
+            info!("LIDAR obstacle logging: {}", if lidar.enable_logging { "ON" } else { "OFF" });
+        }
+    }
+}
+
 /// System to display robot control information
 pub fn display_robot_controls_info(mut ran: Local<bool>) {
     if !*ran {
@@ -109,6 +129,8 @@ pub fn display_robot_controls_info(mut ran: Local<bool>) {
         info!("  - E: Rotate right (clockwise)");
         info!("• Spacebar: Jump");
         info!("• R key: Reset oblique projection to default");
+        info!("• L key: Toggle LIDAR visualization");
+        info!("• O key: Toggle LIDAR obstacle logging");
         info!("• Secondary window: Real-time robot first-person view");
         info!("  - Shows exactly what the robot is facing");
         info!("  - Camera follows robot position and rotation");

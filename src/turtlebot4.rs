@@ -107,6 +107,14 @@ pub fn spawn(
                 .insert(crate::RobotChassis) // Marker component for robot control
                 .insert(SceneRoot(asset_server.load::<Scene>("robots/turtlebot4.glb#Scene0")))
                 .id();
+            
+            /* spawn the LIDAR sensor on top of chassis */
+            commands.spawn((
+                crate::lidar::LidarSensor::default(),
+                Transform::from_translation(Vec3::new(0.0, 0.15, 0.0)), // Mount on top
+                GlobalTransform::default(),
+                Visibility::default(),
+            )).insert(ChildOf(chassis));
             /* spawn the left wheel */
             let left_wheel_transform = *transform *
                 Transform::from_xyz(WHEEL_OFFSET_X, WHEEL_RADIUS, -WHEEL_OFFSET_Z)
