@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use std::f32::consts::PI;
+use bevy::reflect::Reflect;
+use bevy_inspector_egui::prelude::*;
 
 // RPLIDAR A1M8 specifications 
 const LIDAR_RANGE_MIN: f32 = 0.2;     // 0.2 meters minimum range
@@ -10,19 +12,39 @@ const LIDAR_RAYS_PER_SCAN: usize = 36; // Reduced for performance (every 10 degr
 const LIDAR_ANGULAR_RESOLUTION: f32 = 2.0 * PI / LIDAR_RAYS_PER_SCAN as f32; // 10° per ray
 
 /// LIDAR sensor component with obstacle detection
-#[derive(Component)]
+#[derive(Component, Reflect, InspectorOptions)]
+#[reflect(Component, InspectorOptions)]
 pub struct LidarSensor {
+    /// Minimum range (meters)
+    #[inspector(min = 0.01, max = 1.0, speed = 0.01)]
+    pub range_min: f32,
+    /// Maximum range (meters)
+    #[inspector(min = 1.0, max = 50.0, speed = 0.1)]
+    pub range_max: f32,
+    /// Scan rate (Hz)
+    #[inspector(min = 0.1, max = 100.0, speed = 0.1)]
+    pub scan_rate: f32,
+    /// Number of rays per scan
+    #[inspector(min = 4, max = 720, speed = 1.0)]
+    pub rays_per_scan: usize,
+    /// Angular resolution (radians) - READ ONLY
+    #[inspector(min = 0.0, max = 10.0)]
+    pub angular_resolution: f32,
     /// Timer for scan rate control
+    #[reflect(ignore)]
     pub scan_timer: Timer,
     /// Position offset from parent entity
     pub offset: Vec3,
     /// Whether to enable visualization
     pub visualize: bool,
     /// Current ray angle
+    #[reflect(ignore)]
     pub current_angle: f32,
     /// Current ray index in scan
+    #[reflect(ignore)]
     pub current_ray: usize,
     /// Last scan results: (angle, distance, hit_something)
+    #[reflect(ignore)]
     pub scan_results: Vec<(f32, f32, bool)>,
     /// Whether to enable logging
     pub enable_logging: bool,
@@ -31,6 +53,11 @@ pub struct LidarSensor {
 impl Default for LidarSensor {
     fn default() -> Self {
         LidarSensor {
+            range_min: LIDAR_RANGE_MIN,
+            range_max: LIDAR_RANGE_MAX,
+            scan_rate: LIDAR_SCAN_RATE,
+            rays_per_scan: LIDAR_RAYS_PER_SCAN,
+            angular_resolution: LIDAR_ANGULAR_RESOLUTION,
             scan_timer: Timer::from_seconds(1.0 / LIDAR_SCAN_RATE, TimerMode::Repeating),
             offset: Vec3::ZERO, // Position set in Transform
             visualize: true,
@@ -42,15 +69,44 @@ impl Default for LidarSensor {
     }
 }
 
+impl LidarSensor {
+    /// Update internal parameters when inspector values change
+    pub fn update_parameters(&mut self) {
+        // Recalculate angular resolution
+        self.angular_resolution = 2.0 * PI / self.rays_per_scan as f32;
+        
+        // Update timer with new scan rate
+        self.scan_timer = Timer::from_seconds(1.0 / self.scan_rate, TimerMode::Repeating);
+        
+        // Resize scan results if rays_per_scan changed
+        if self.scan_results.capacity() != self.rays_per_scan {
+            self.scan_results = Vec::with_capacity(self.rays_per_scan);
+        }
+    }
+}
+
 /// Plugin for LIDAR functionality
 pub struct LidarPlugin;
 
 impl Plugin for LidarPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, (
+            lidar_parameter_update_system,
             lidar_scanning_system,
             lidar_visualization_system,
-        ));
+        ))
+        .register_type::<LidarSensor>()
+        .register_type::<Vec3>()
+        .register_type::<Timer>();
+    }
+}
+
+/// System to update LIDAR parameters when they change in the inspector
+pub fn lidar_parameter_update_system(
+    mut lidar_query: Query<&mut LidarSensor, Changed<LidarSensor>>,
+) {
+    for mut lidar in lidar_query.iter_mut() {
+        lidar.update_parameters();
     }
 }
 
@@ -72,9 +128,9 @@ pub fn lidar_scanning_system(
             // Get LIDAR world position
             let lidar_pos = lidar_transform.translation();
             
-            // Perform 360-degree scan
-            for i in 0..LIDAR_RAYS_PER_SCAN {
-                let angle = i as f32 * LIDAR_ANGULAR_RESOLUTION;
+            // Perform 360-degree scan using configurable parameters
+            for i in 0..lidar.rays_per_scan {
+                let angle = i as f32 * lidar.angular_resolution;
                 
                 // Calculate ray direction (starting from +X axis, rotating clockwise in XZ plane)
                 let local_direction = Vec3::new(
@@ -85,7 +141,7 @@ pub fn lidar_scanning_system(
                 let world_direction = lidar_transform.rotation() * local_direction;
                 
                 // Find closest obstacle in this direction
-                let mut closest_distance = LIDAR_RANGE_MAX;
+                let mut closest_distance = lidar.range_max;
                 let mut found_obstacle = false;
                 
                 for obstacle_transform in obstacle_query.iter() {
@@ -94,7 +150,7 @@ pub fn lidar_scanning_system(
                     
                     // Skip if obstacle is too close or too far
                     let distance_to_obstacle = to_obstacle.length();
-                    if distance_to_obstacle < LIDAR_RANGE_MIN || distance_to_obstacle > LIDAR_RANGE_MAX {
+                    if distance_to_obstacle < lidar.range_min || distance_to_obstacle > lidar.range_max {
                         continue;
                     }
                     
@@ -140,7 +196,7 @@ pub fn lidar_scanning_system(
             let obstacles_detected = lidar.scan_results.iter().filter(|(_, _, hit)| *hit).count();
             if lidar.enable_logging && obstacles_detected > 0 {
                 info!("LIDAR scan summary: {} obstacles detected out of {} rays", 
-                      obstacles_detected, LIDAR_RAYS_PER_SCAN);
+                      obstacles_detected, lidar.rays_per_scan);
             }
         }
         
@@ -178,49 +234,82 @@ pub fn lidar_visualization_system(
             // Calculate hit point
             let hit_point = lidar_pos + world_direction * distance;
             
-            // Color based on hit status and distance
-            let color = if hit_something {
+            // Color based on hit status and distance with 5% opacity
+            let base_color = if hit_something {
                 // Hit something - color by distance (close = red, far = yellow)
-                let distance_ratio = (distance - LIDAR_RANGE_MIN) / (LIDAR_RANGE_MAX - LIDAR_RANGE_MIN);
-                Color::srgb(1.0, distance_ratio.clamp(0.0, 1.0), 0.0)
+                let distance_ratio = (distance - lidar.range_min) / (lidar.range_max - lidar.range_min);
+                Color::srgba(1.0, distance_ratio.clamp(0.0, 1.0), 0.0, 0.05)
             } else {
-                // No hit - gray
-                Color::srgb(0.3, 0.3, 0.3)
+                // No hit - gray with 5% opacity
+                Color::srgba(0.3, 0.3, 0.3, 0.05)
             };
             
-            // Draw ray line
-            gizmos.line(lidar_pos, hit_point, color);
+            // Draw dotted ray line by drawing segments with gaps
+            let ray_vector = hit_point - lidar_pos;
+            let ray_length = ray_vector.length();
+            let ray_direction = ray_vector.normalize();
             
-            // Draw hit points for obstacles
+            // Dotted line parameters
+            let dash_length = 0.05; // 5cm dashes
+            let gap_length = 0.03;  // 3cm gaps
+            let segment_length = dash_length + gap_length;
+            
+            let num_segments = (ray_length / segment_length).floor() as i32;
+            
+            for i in 0..num_segments {
+                let start_distance = i as f32 * segment_length;
+                let end_distance = start_distance + dash_length;
+                
+                if end_distance <= ray_length {
+                    let start_point = lidar_pos + ray_direction * start_distance;
+                    let end_point = lidar_pos + ray_direction * end_distance;
+                    gizmos.line(start_point, end_point, base_color);
+                }
+            }
+            
+            // Draw the final segment if there's a remainder
+            let remainder_start = num_segments as f32 * segment_length;
+            if remainder_start < ray_length {
+                let remainder_end = (remainder_start + dash_length).min(ray_length);
+                if remainder_end > remainder_start {
+                    let start_point = lidar_pos + ray_direction * remainder_start;
+                    let end_point = lidar_pos + ray_direction * remainder_end;
+                    gizmos.line(start_point, end_point, base_color);
+                }
+            }
+            
+            // Draw hit points for obstacles with slightly higher opacity
             if hit_something {
                 let hit_cross_size = 0.015;
+                let hit_color = Color::srgba(1.0, 0.0, 0.0, 0.3); // 30% opacity for hit markers
                 gizmos.line(
                     hit_point + Vec3::new(-hit_cross_size, 0.0, 0.0),
                     hit_point + Vec3::new(hit_cross_size, 0.0, 0.0),
-                    Color::srgb(1.0, 0.0, 0.0)
+                    hit_color
                 );
                 gizmos.line(
                     hit_point + Vec3::new(0.0, 0.0, -hit_cross_size),
                     hit_point + Vec3::new(0.0, 0.0, hit_cross_size),
-                    Color::srgb(1.0, 0.0, 0.0)
+                    hit_color
                 );
             }
         }
         
-        // Draw LIDAR sensor center (cyan cross)
+        // Draw LIDAR sensor center (cyan cross) with higher opacity
         let cross_size = 0.05;
+        let center_color = Color::srgba(0.0, 1.0, 1.0, 0.8); // 80% opacity for sensor center
         gizmos.line(
             lidar_pos + Vec3::new(-cross_size, 0.0, 0.0),
             lidar_pos + Vec3::new(cross_size, 0.0, 0.0),
-            Color::srgb(0.0, 1.0, 1.0)
+            center_color
         );
         gizmos.line(
             lidar_pos + Vec3::new(0.0, 0.0, -cross_size),
             lidar_pos + Vec3::new(0.0, 0.0, cross_size),
-            Color::srgb(0.0, 1.0, 1.0)
+            center_color
         );
         
-        // Draw current ray direction indicator
+        // Draw current ray direction indicator with medium opacity
         if !lidar.scan_results.is_empty() {
             let local_direction = Vec3::new(
                 lidar.current_angle.cos(),
@@ -229,7 +318,8 @@ pub fn lidar_visualization_system(
             );
             let world_direction = transform.rotation() * local_direction;
             let direction_end = lidar_pos + world_direction * 0.4;
-            gizmos.line(lidar_pos, direction_end, Color::srgb(1.0, 1.0, 1.0));
+            let direction_color = Color::srgba(1.0, 1.0, 1.0, 0.6); // 60% opacity for current ray
+            gizmos.line(lidar_pos, direction_end, direction_color);
         }
     }
 }
