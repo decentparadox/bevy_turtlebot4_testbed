@@ -1456,6 +1456,8 @@ dependencies = [
  "bevy-inspector-egui",
  "bevy_egui 0.35.0",
  "bevy_rapier3d",
+ "rand",
+ "rand_distr",
  "tracing",
 ]
 

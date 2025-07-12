@@ -62,7 +62,6 @@ pub fn handle_robot_drag_input(
                         drag_state.drag_offset = hit_point - robot_position;
                         drag_state.initial_position = robot_position;
                         
-                        info!("Started dragging robot at position: {:?}", robot_position);
                         break;
                     }
                 }
@@ -75,7 +74,6 @@ pub fn handle_robot_drag_input(
         && drag_state.is_dragging {
         drag_state.is_dragging = false;
         drag_state.drag_entity = None;
-        info!("Stopped dragging robot");
     }
 }
 
@@ -133,6 +131,5 @@ fn closest_point_on_ray_to_point(ray_origin: Vec3, ray_direction: Vec3, point: V
 pub fn make_robot_draggable(mut commands: Commands, robot_query: Query<Entity, (With<crate::RobotChassis>, Without<DraggableRobot>)>) {
     for entity in robot_query.iter() {
         commands.entity(entity).insert(DraggableRobot);
-        info!("Made robot draggable: {:?}", entity);
     }
 } 
