@@ -31,9 +31,24 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Install Dependencies
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libasound2-dev \
+            libudev-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxrandr-dev \
+            libxi-dev \
+            xvfb
       - name: Run cargo test
-        run: cargo test
+        run: xvfb-run -a cargo test
+        env:
+          # Enable headless testing with virtual display
+          CI: true
+          DISPLAY: ":99"
 
   # Run cargo clippy -- -D warnings
   clippy_check:
@@ -58,9 +73,24 @@ jobs:
         with:
           components: clippy
       - name: Install Dependencies
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libasound2-dev \
+            libudev-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxrandr-dev \
+            libxi-dev \
+            xvfb
       - name: Run clippy
-        run: cargo clippy -- -D warnings
+        run: xvfb-run -a cargo clippy -- -D warnings
+        env:
+          # Enable headless mode with virtual display
+          CI: true
+          DISPLAY: ":99"
 
   # Run cargo fmt --all -- --check
   format:
