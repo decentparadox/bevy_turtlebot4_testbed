@@ -1,12 +1,12 @@
 use bevy::prelude::*;
-use bevy::window::{Window, WindowPosition, WindowRef};
 use bevy::render::camera::{CameraProjection, RenderTarget, SubCameraView};
+use bevy::window::{Window, WindowPosition, WindowRef};
 
 use bevy_rapier3d::{
+    dynamics::Velocity,
     geometry::{Collider, CollisionGroups, Group},
     plugin::{NoUserData, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
-    dynamics::{ExternalImpulse, Velocity},
 };
 
 #[derive(Debug, Clone)]
@@ -54,17 +54,17 @@ struct CustomProjectionWindow {
 /// System to create the custom projection window
 fn setup_custom_projection_window(mut commands: Commands) {
     // Create secondary window for custom projection
-    let window_entity = commands.spawn(Window {
-        resolution: (800.0, 600.0).into(),
-        title: "Robot First-Person View (Oblique Projection)".into(),
-        position: WindowPosition::Automatic,
-        ..default()
-    }).id();
-    
-    commands.insert_resource(CustomProjectionWindow {
-        window_entity,
-    });
-    
+    let window_entity = commands
+        .spawn(Window {
+            resolution: (800.0, 600.0).into(),
+            title: "Robot First-Person View (Oblique Projection)".into(),
+            position: WindowPosition::Automatic,
+            ..default()
+        })
+        .id();
+
+    commands.insert_resource(CustomProjectionWindow { window_entity });
+
     info!("Created secondary window for robot first-person perspective view");
 }
 
@@ -73,7 +73,6 @@ fn setup_custom_projection_camera(
     mut commands: Commands,
     custom_window: Res<CustomProjectionWindow>,
 ) {
-    
     // Spawn camera with custom oblique perspective projection rendering to secondary window
     commands.spawn((
         Camera3d::default(),
@@ -83,7 +82,6 @@ fn setup_custom_projection_camera(
             vertical_obliqueness: 0.0,
             perspective: PerspectiveProjection::default(),
         }),
-        
         Camera {
             target: RenderTarget::Window(WindowRef::Entity(custom_window.window_entity)),
             clear_color: ClearColorConfig::Custom(Color::srgb(0.1, 0.1, 0.3)), // Dark blue background
@@ -98,7 +96,7 @@ fn setup_custom_projection_camera(
         ViewVisibility::default(),
         ObliqueProjectionController, // Marker component for controlling the projection
     ));
-    
+
     info!("Robot first-person camera setup complete - follows robot position and rotation");
 }
 
@@ -111,54 +109,59 @@ pub struct ObliqueProjectionController;
 pub struct RobotChassis;
 
 /// System to update oblique projection based on robot state
+#[allow(clippy::type_complexity)]
 fn update_projection_from_robot(
     robot_query: Query<(&Transform, Option<&Velocity>), With<RobotChassis>>,
-    mut projection_query: Query<(&mut Projection, &mut Transform), (With<ObliqueProjectionController>, Without<RobotChassis>)>,
+    mut projection_query: Query<
+        (&mut Projection, &mut Transform),
+        (With<ObliqueProjectionController>, Without<RobotChassis>),
+    >,
 ) {
     if let Ok((robot_transform, robot_velocity)) = robot_query.single() {
         if let Ok((mut projection, mut camera_transform)) = projection_query.single_mut() {
-            
             // Update camera position to follow robot (with slight height offset for better view)
             let camera_height_offset = 0.3; // Adjust this to change camera height above robot
             let camera_forward_offset = 0.1; // Slightly forward from robot center
-            
+
             // Position camera at robot's position with offsets
             let robot_forward = robot_transform.forward();
-            camera_transform.translation = robot_transform.translation 
+            camera_transform.translation = robot_transform.translation
                 + Vec3::new(0.0, camera_height_offset, 0.0) // Height offset
                 + robot_forward * camera_forward_offset; // Forward offset
-            
+
             // Make camera look in the same direction as robot
             let target_point = camera_transform.translation + robot_forward * 5.0; // Look ahead
             camera_transform.look_at(target_point, Vec3::Y);
-            
+
             if let Projection::Custom(custom_projection) = projection.as_mut() {
-                if let Some(oblique) = custom_projection.downcast_mut::<ObliquePerspectiveProjection>() {
-                    
+                if let Some(oblique) =
+                    custom_projection.downcast_mut::<ObliquePerspectiveProjection>()
+                {
                     // Get robot's forward direction (normalized)
                     let robot_forward = robot_transform.forward().normalize();
-                    
+
                     // Calculate horizontal obliqueness based on robot's rotation around Y axis
                     // Using the robot's forward direction projected onto XZ plane
                     let forward_xz = Vec3::new(robot_forward.x, 0.0, robot_forward.z).normalize();
                     oblique.horizontal_obliqueness = forward_xz.x * 0.3; // Reduced effect for robot view
-                    
+
                     // Calculate vertical obliqueness based on robot's velocity magnitude
                     let velocity_magnitude = if let Some(velocity) = robot_velocity {
                         velocity.linvel.length()
                     } else {
                         0.0
                     };
-                    
+
                     // Use velocity to control vertical obliqueness (reduced for robot view)
                     oblique.vertical_obliqueness = (velocity_magnitude * 0.05).clamp(-0.4, 0.4);
-                    
+
                     // Optional: Add some pitch influence (reduced)
                     let pitch_influence = robot_transform.forward().y * 0.1;
                     oblique.vertical_obliqueness += pitch_influence;
-                    
+
                     // Clamp values to reasonable ranges (smaller range for robot view)
-                    oblique.horizontal_obliqueness = oblique.horizontal_obliqueness.clamp(-0.5, 0.5);
+                    oblique.horizontal_obliqueness =
+                        oblique.horizontal_obliqueness.clamp(-0.5, 0.5);
                     oblique.vertical_obliqueness = oblique.vertical_obliqueness.clamp(-0.5, 0.5);
                 }
             }
@@ -166,15 +169,18 @@ fn update_projection_from_robot(
     }
 }
 
-mod turtlebot4;
 mod camera;
 mod keyboard_controls;
 mod lidar;
 mod robot_drag;
+mod turtlebot4;
 
-const STATIC_GROUP: Group = Group::GROUP_1;
-const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
-const CHASSIS_GROUP: Group = Group::GROUP_3;
+#[cfg(test)]
+mod tests;
+
+pub const STATIC_GROUP: Group = Group::GROUP_1;
+pub const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
+pub const CHASSIS_GROUP: Group = Group::GROUP_3;
 
 pub fn main() {
     App::new()
@@ -191,18 +197,20 @@ pub fn main() {
         .add_plugins(robot_drag::RobotDragPlugin)
         .add_systems(Startup, (setup, setup_custom_projection_window))
         .add_systems(Update, robot_drag::make_robot_draggable)
-        .add_systems(Update, (
-            camera::update_camera_system, 
-            camera::accumulate_mouse_events_system,
-            camera::update_camera_focus_on_robot,
-            keyboard_controls::control_robot_movement,
-            update_projection_from_robot,
-            keyboard_controls::display_robot_controls_info,
-            keyboard_controls::manual_adjust_oblique_projection,
-            keyboard_controls::toggle_lidar_visualization,
-            render_origin,
-        ))
-        
+        .add_systems(
+            Update,
+            (
+                camera::update_camera_system,
+                camera::accumulate_mouse_events_system,
+                camera::update_camera_focus_on_robot,
+                keyboard_controls::control_robot_movement,
+                update_projection_from_robot,
+                keyboard_controls::display_robot_controls_info,
+                keyboard_controls::manual_adjust_oblique_projection,
+                keyboard_controls::toggle_lidar_visualization,
+                render_origin,
+            ),
+        )
         .add_systems(PostStartup, setup_custom_projection_camera)
         .run();
 }
@@ -217,12 +225,11 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>
+    asset_server: Res<AssetServer>,
 ) {
     let translation = Vec3::new(1.0, 2.0, 2.0);
     let focus = Vec3::ZERO;
-    let transform = Transform::from_translation(translation)
-        .looking_at(focus, Vec3::Y);    
+    let transform = Transform::from_translation(translation).looking_at(focus, Vec3::Y);
 
     commands
         .spawn((
@@ -249,8 +256,7 @@ fn setup(
                     illuminance: 1000.0,
                     ..default()
                 },
-                Transform::from_xyz(-2.5, 2.5, 2.5)
-                    .looking_at(Vec3::ZERO, Vec3::Y),
+                Transform::from_xyz(-2.5, 2.5, 2.5).looking_at(Vec3::ZERO, Vec3::Y),
                 Visibility::default(),
                 InheritedVisibility::default(),
                 ViewVisibility::default(),
@@ -295,12 +301,27 @@ fn setup(
 
     // North wall
     commands
-        .spawn(Collider::cuboid((wall_length - wall_thickness) * 0.5, wall_height * 0.5, wall_thickness * 0.5))
-        .insert(CollisionGroups::new(STATIC_GROUP, CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP))
+        .spawn(Collider::cuboid(
+            (wall_length - wall_thickness) * 0.5,
+            wall_height * 0.5,
+            wall_thickness * 0.5,
+        ))
+        .insert(CollisionGroups::new(
+            STATIC_GROUP,
+            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
+        ))
         .insert((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(wall_length - wall_thickness, wall_height, wall_thickness)))),
+            Mesh3d(meshes.add(Mesh::from(Cuboid::new(
+                wall_length - wall_thickness,
+                wall_height,
+                wall_thickness,
+            )))),
             MeshMaterial3d(materials.add(wall_color)),
-            Transform::from_xyz(-wall_thickness * 0.5, wall_height * 0.5, (-wall_length + wall_thickness) * 0.5),
+            Transform::from_xyz(
+                -wall_thickness * 0.5,
+                wall_height * 0.5,
+                (-wall_length + wall_thickness) * 0.5,
+            ),
             Visibility::default(),
             InheritedVisibility::default(),
             ViewVisibility::default(),
@@ -308,95 +329,126 @@ fn setup(
 
     // East wall
     commands
-        .spawn(Collider::cuboid(wall_thickness * 0.5, wall_height * 0.5, (wall_length - wall_thickness) * 0.5))
-        .insert(CollisionGroups::new(STATIC_GROUP, CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP))
+        .spawn(Collider::cuboid(
+            wall_thickness * 0.5,
+            wall_height * 0.5,
+            (wall_length - wall_thickness) * 0.5,
+        ))
+        .insert(CollisionGroups::new(
+            STATIC_GROUP,
+            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
+        ))
         .insert((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(wall_thickness, wall_height, wall_length - wall_thickness)))),
+            Mesh3d(meshes.add(Mesh::from(Cuboid::new(
+                wall_thickness,
+                wall_height,
+                wall_length - wall_thickness,
+            )))),
             MeshMaterial3d(materials.add(wall_color)),
-            Transform::from_xyz((wall_length - wall_thickness) * 0.5, wall_height * 0.5, -wall_thickness * 0.5),
+            Transform::from_xyz(
+                (wall_length - wall_thickness) * 0.5,
+                wall_height * 0.5,
+                -wall_thickness * 0.5,
+            ),
             Visibility::default(),
             InheritedVisibility::default(),
             ViewVisibility::default(),
         ));
 
     // Add a test screen on the east wall for camera testing
-    commands.spawn((
-        Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.02, 1.0, 1.5)))), // Screen frame
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.1, 0.1, 0.1), // Dark frame
-            ..default()
-        })),
-        Transform::from_xyz((wall_length - wall_thickness) * 0.5 - 0.05, 0.5, 0.0), // On east wall
-        Visibility::default(),
-        InheritedVisibility::default(),
-        ViewVisibility::default(),
-    ))
-    .with_children(|commands| {
-        // Screen display with colorful pattern
-        commands.spawn((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.005, 0.8, 1.2)))), // Screen surface
+    commands
+        .spawn((
+            Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.02, 1.0, 1.5)))), // Screen frame
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.2, 0.8, 1.0), // Bright cyan
-                emissive: LinearRgba::new(0.1, 0.4, 0.5, 1.0), // Glowing effect
+                base_color: Color::srgb(0.1, 0.1, 0.1), // Dark frame
                 ..default()
             })),
-            Transform::from_xyz(-0.008, 0.0, 0.0), // Slightly in front of frame
+            Transform::from_xyz((wall_length - wall_thickness) * 0.5 - 0.05, 0.5, 0.0), // On east wall
             Visibility::default(),
             InheritedVisibility::default(),
             ViewVisibility::default(),
-        ));
-        
-        // Add colorful indicator elements on the screen for camera testing
-        for i in 0..3 {
-            for j in 0..3 {
-                let color = match (i + j) % 3 {
-                    0 => Color::srgb(1.0, 0.2, 0.2), // Red
-                    1 => Color::srgb(0.2, 1.0, 0.2), // Green
-                    _ => Color::srgb(0.2, 0.2, 1.0), // Blue
-                };
-                
-                commands.spawn((
-                    Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.002, 0.12, 0.12)))),
-                    MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: color,
-                        emissive: LinearRgba::from(color) * 0.5,
-                        ..default()
-                    })),
-                    Transform::from_xyz(
-                        -0.012, 
-                        (i as f32 - 1.0) * 0.25, 
-                        (j as f32 - 1.0) * 0.35
-                    ),
-                    Visibility::default(),
-                    InheritedVisibility::default(),
-                    ViewVisibility::default(),
-                ));
+        ))
+        .with_children(|commands| {
+            // Screen display with colorful pattern
+            commands.spawn((
+                Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.005, 0.8, 1.2)))), // Screen surface
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgb(0.2, 0.8, 1.0),        // Bright cyan
+                    emissive: LinearRgba::new(0.1, 0.4, 0.5, 1.0), // Glowing effect
+                    ..default()
+                })),
+                Transform::from_xyz(-0.008, 0.0, 0.0), // Slightly in front of frame
+                Visibility::default(),
+                InheritedVisibility::default(),
+                ViewVisibility::default(),
+            ));
+
+            // Add colorful indicator elements on the screen for camera testing
+            for i in 0..3 {
+                for j in 0..3 {
+                    let color = match (i + j) % 3 {
+                        0 => Color::srgb(1.0, 0.2, 0.2), // Red
+                        1 => Color::srgb(0.2, 1.0, 0.2), // Green
+                        _ => Color::srgb(0.2, 0.2, 1.0), // Blue
+                    };
+
+                    commands.spawn((
+                        Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.002, 0.12, 0.12)))),
+                        MeshMaterial3d(materials.add(StandardMaterial {
+                            base_color: color,
+                            emissive: LinearRgba::from(color) * 0.5,
+                            ..default()
+                        })),
+                        Transform::from_xyz(
+                            -0.012,
+                            (i as f32 - 1.0) * 0.25,
+                            (j as f32 - 1.0) * 0.35,
+                        ),
+                        Visibility::default(),
+                        InheritedVisibility::default(),
+                        ViewVisibility::default(),
+                    ));
+                }
             }
-        }
-        
-        // Add a central white reference dot
-        commands.spawn((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.003, 0.06, 0.06)))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::WHITE,
-                emissive: LinearRgba::new(1.0, 1.0, 1.0, 1.0),
-                ..default()
-            })),
-            Transform::from_xyz(-0.015, 0.0, 0.0),
-            Visibility::default(),
-            InheritedVisibility::default(),
-            ViewVisibility::default(),
-        ));
-    });
+
+            // Add a central white reference dot
+            commands.spawn((
+                Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.003, 0.06, 0.06)))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::WHITE,
+                    emissive: LinearRgba::new(1.0, 1.0, 1.0, 1.0),
+                    ..default()
+                })),
+                Transform::from_xyz(-0.015, 0.0, 0.0),
+                Visibility::default(),
+                InheritedVisibility::default(),
+                ViewVisibility::default(),
+            ));
+        });
 
     // South wall
     commands
-        .spawn(Collider::cuboid((wall_length - wall_thickness) * 0.5, wall_height * 0.5, wall_thickness * 0.5))
-        .insert(CollisionGroups::new(STATIC_GROUP, CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP))
+        .spawn(Collider::cuboid(
+            (wall_length - wall_thickness) * 0.5,
+            wall_height * 0.5,
+            wall_thickness * 0.5,
+        ))
+        .insert(CollisionGroups::new(
+            STATIC_GROUP,
+            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
+        ))
         .insert((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(wall_length - wall_thickness, wall_height, wall_thickness)))),
+            Mesh3d(meshes.add(Mesh::from(Cuboid::new(
+                wall_length - wall_thickness,
+                wall_height,
+                wall_thickness,
+            )))),
             MeshMaterial3d(materials.add(wall_color)),
-            Transform::from_xyz(wall_thickness * 0.5, wall_height * 0.5, (wall_length - wall_thickness) * 0.5),
+            Transform::from_xyz(
+                wall_thickness * 0.5,
+                wall_height * 0.5,
+                (wall_length - wall_thickness) * 0.5,
+            ),
             Visibility::default(),
             InheritedVisibility::default(),
             ViewVisibility::default(),
@@ -404,12 +456,27 @@ fn setup(
 
     // West wall
     commands
-        .spawn(Collider::cuboid(wall_thickness * 0.5, wall_height * 0.5, (wall_length - wall_thickness) * 0.5))
-        .insert(CollisionGroups::new(STATIC_GROUP, CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP))
+        .spawn(Collider::cuboid(
+            wall_thickness * 0.5,
+            wall_height * 0.5,
+            (wall_length - wall_thickness) * 0.5,
+        ))
+        .insert(CollisionGroups::new(
+            STATIC_GROUP,
+            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
+        ))
         .insert((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(wall_thickness, wall_height, wall_length - wall_thickness)))),
+            Mesh3d(meshes.add(Mesh::from(Cuboid::new(
+                wall_thickness,
+                wall_height,
+                wall_length - wall_thickness,
+            )))),
             MeshMaterial3d(materials.add(wall_color)),
-            Transform::from_xyz((-wall_length + wall_thickness) * 0.5, wall_height * 0.5, wall_thickness * 0.5),
+            Transform::from_xyz(
+                (-wall_length + wall_thickness) * 0.5,
+                wall_height * 0.5,
+                wall_thickness * 0.5,
+            ),
             Visibility::default(),
             InheritedVisibility::default(),
             ViewVisibility::default(),
@@ -418,7 +485,10 @@ fn setup(
     // Floor
     commands
         .spawn(Collider::cuboid(2.0, 0.1, 2.0))
-        .insert(CollisionGroups::new(STATIC_GROUP, CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP))
+        .insert(CollisionGroups::new(
+            STATIC_GROUP,
+            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
+        ))
         .insert((
             Transform::from_xyz(0.0, -0.1, 0.0),
             Visibility::default(),
@@ -437,5 +507,9 @@ fn setup(
         });
 
     // Robot
-    turtlebot4::spawn(&mut commands, &asset_server, &Transform::from_xyz(0.0, 0.5, 0.0));
+    turtlebot4::spawn(
+        &mut commands,
+        &asset_server,
+        &Transform::from_xyz(0.0, 0.5, 0.0),
+    );
 }

@@ -1,5 +1,5 @@
+use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
-use bevy::input::mouse::{MouseWheel,MouseMotion};
 use bevy::render::camera::Projection;
 use bevy::window::{PrimaryWindow, Window};
 
@@ -60,7 +60,7 @@ pub fn accumulate_mouse_events_system(
     let mut rotation_move = Vec2::ZERO;
     let mut scroll = 0.0;
     let mut orbit_button_changed = false;
-    
+
     let orbit_button = MouseButton::Right;
     let pan_button = MouseButton::Middle;
 
@@ -80,7 +80,9 @@ pub fn accumulate_mouse_events_system(
     for ev in ev_scroll.read() {
         scroll += ev.y;
     }
-    if !drag_state.is_dragging && (input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button)) {
+    if !drag_state.is_dragging
+        && (input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button))
+    {
         orbit_button_changed = true;
     }
 
@@ -103,7 +105,7 @@ pub fn update_camera_system(
             // if the camera is "upside" down, panning horizontally would be inverted, so invert the input to make it correct
             let up = transform.rotation * Vec3::Y;
             camera.upside_down = up.y <= 0.0;
-            
+
             camera.orbit_button_changed = false;
         }
 
@@ -123,8 +125,8 @@ pub fn update_camera_system(
             let pitch = Quat::from_rotation_x(-delta_y);
             transform.rotation = yaw * transform.rotation; // rotate around global y axis
             transform.rotation *= pitch; // rotate around local x axis
-        } 
-        
+        }
+
         if camera.pan.length_squared() > 0.5 {
             any = true;
             let mut pan = camera.pan * LERP;
@@ -140,11 +142,11 @@ pub fn update_camera_system(
             // make panning proportional to distance away from focus point
             let translation = (right + up) * camera.radius;
             camera.focus += translation;
-        } 
-        
+        }
+
         if camera.scroll.abs() > 0.5 {
             any = true;
-            
+
             let scroll = camera.scroll * LERP;
             camera.scroll -= scroll;
             camera.radius -= scroll * camera.radius * 0.05;
@@ -157,13 +159,13 @@ pub fn update_camera_system(
             // parent = x and y rotation
             // child = z-offset
             let rot_matrix = Mat3::from_quat(transform.rotation);
-            transform.translation = camera.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, camera.radius));
+            transform.translation =
+                camera.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, camera.radius));
         }
     }
 
     // consume any remaining events, so they don't pile up if we don't need them
     // (and also to avoid Bevy warning us about not checking events every frame update)
-    
 }
 
 fn get_primary_window_size(windows: &Query<&Window, With<PrimaryWindow>>) -> Vec2 {
