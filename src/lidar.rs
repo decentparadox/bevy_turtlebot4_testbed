@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use std::f32::consts::PI;
 use bevy::reflect::Reflect;
-use bevy_inspector_egui::prelude::*;
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
@@ -37,23 +36,18 @@ pub struct LaserScan {
 }
 
 /// LIDAR sensor component with obstacle detection
-#[derive(Component, Reflect, InspectorOptions)]
-#[reflect(Component, InspectorOptions)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct LidarSensor {
     /// Minimum range (meters)
-    #[inspector(min = 0.01, max = 1.0, speed = 0.01)]
     pub range_min: f32,
     /// Maximum range (meters)
-    #[inspector(min = 1.0, max = 50.0, speed = 0.1)]
     pub range_max: f32,
     /// Scan rate (Hz)
-    #[inspector(min = 0.1, max = 100.0, speed = 0.1)]
     pub scan_rate: f32,
     /// Number of rays per scan
-    #[inspector(min = 4, max = 720, speed = 1.0)]
     pub rays_per_scan: usize,
     /// Angular resolution (radians) - READ ONLY
-    #[inspector(min = 0.0, max = 10.0)]
     pub angular_resolution: f32,
     /// Timer for scan rate control
     #[reflect(ignore)]
@@ -74,7 +68,6 @@ pub struct LidarSensor {
     /// Whether to enable logging
     pub enable_logging: bool,
     /// Standard deviation for noise (0 for no noise)
-    #[inspector(min = 0.0, max = 1.0, speed = 0.01)]
     pub noise_stddev: f32,
 }
 
@@ -99,7 +92,7 @@ impl Default for LidarSensor {
 }
 
 impl LidarSensor {
-    /// Update internal parameters when inspector values change
+    /// Update internal parameters when values change
     pub fn update_parameters(&mut self) {
         // Recalculate angular resolution
         self.angular_resolution = 2.0 * PI / self.rays_per_scan as f32;
@@ -131,7 +124,7 @@ impl Plugin for LidarPlugin {
     }
 }
 
-/// System to update LIDAR parameters when they change in the inspector
+/// System to update LIDAR parameters when they change
 pub fn lidar_parameter_update_system(
     mut lidar_query: Query<&mut LidarSensor, Changed<LidarSensor>>,
 ) {

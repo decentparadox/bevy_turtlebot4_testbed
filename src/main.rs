@@ -8,8 +8,6 @@ use bevy_rapier3d::{
     render::RapierDebugRenderPlugin,
     dynamics::{ExternalImpulse, Velocity},
 };
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_egui::EguiPlugin;
 
 #[derive(Debug, Clone)]
 pub struct ObliquePerspectiveProjection {
@@ -187,8 +185,6 @@ pub fn main() {
             affects_lightmapped_meshes: true,
         })
         .add_plugins(DefaultPlugins)
-        .add_plugins(EguiPlugin::default())
-        .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(lidar::LidarPlugin)
