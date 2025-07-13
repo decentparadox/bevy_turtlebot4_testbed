@@ -1,0 +1,46 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+      - id: fmt
+        name: Rust fmt
+        description: Run cargo fmt on Rust code
+        entry: cargo fmt --all --
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: clippy
+        name: Rust clippy
+        description: Run cargo clippy on Rust code
+        entry: cargo clippy --all-targets --all-features -- -D warnings
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: cargo-test
+        name: Rust test
+        description: Run cargo test
+        entry: cargo test
+        language: system
+        files: \.rs$
+        pass_filenames: false
+        stages: [manual]  # Only run when explicitly called with --hook-stage manual
+
+  - repo: local
+    hooks:
+      - id: cargo-check
+        name: Rust check
+        description: Run cargo check for faster feedback
+        entry: cargo check --all-targets --all-features
+        language: system
+        files: \.rs$
+        pass_filenames: false 

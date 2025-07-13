@@ -1,0 +1,60 @@
+#!/bin/sh
+# Pre-commit hook for Rust projects
+# This script runs the same checks as the CI pipeline
+
+set -e
+
+echo "🚀 Running pre-commit checks..."
+echo ""
+
+# Check if cargo is available
+if ! command -v cargo &> /dev/null; then
+    echo "❌ Cargo not found. Please install Rust."
+    exit 1
+fi
+
+# 1. Format check
+echo "📝 Checking code formatting..."
+if ! cargo fmt --all -- --check; then
+    echo "❌ Code formatting issues found!"
+    echo "💡 Run 'cargo fmt' to fix formatting"
+    exit 1
+fi
+echo "✅ Code formatting looks good!"
+echo ""
+
+# 2. Clippy check
+echo "🔍 Running Clippy (linter)..."
+if ! cargo clippy --all-targets --all-features -- -D warnings; then
+    echo "❌ Clippy found issues!"
+    echo "💡 Fix the issues above before committing"
+    exit 1
+fi
+echo "✅ Clippy checks passed!"
+echo ""
+
+# 3. Quick check (faster than full test suite)
+echo "🔧 Running cargo check..."
+if ! cargo check --all-targets --all-features; then
+    echo "❌ Cargo check failed!"
+    echo "💡 Fix compilation errors before committing"
+    exit 1
+fi
+echo "✅ Cargo check passed!"
+echo ""
+
+# 4. Tests (optional - can be slow)
+# Uncomment the lines below if you want to run tests on every commit
+# echo "🧪 Running tests..."
+# if ! cargo test; then
+#     echo "❌ Tests failed!"
+#     echo "💡 Fix failing tests before committing"
+#     exit 1
+# fi
+# echo "✅ All tests passed!"
+# echo ""
+
+echo "🎉 All pre-commit checks passed! Ready to commit."
+echo ""
+echo "💡 To run tests manually: cargo test"
+echo "💡 To run full CI locally: .githooks/run-ci.sh" 
