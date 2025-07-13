@@ -290,7 +290,7 @@ pub fn lidar_scanning_system(
                     if range == f32::INFINITY {
                         print!("inf, ");
                     } else {
-                        print!("{:.3}, ", range);
+                        print!("{range:.3}, ");
                     }
                 }
                 info!("");
@@ -305,7 +305,7 @@ pub fn lidar_scanning_system(
                         }
                         print!("    ");
                     }
-                    print!("{:.1}, ", intensity);
+                    print!("{intensity:.1}, ");
                 }
                 info!("");
                 info!("  ]");
