@@ -183,6 +183,28 @@ pub const STATIC_GROUP: Group = Group::GROUP_1;
 pub const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
 pub const CHASSIS_GROUP: Group = Group::GROUP_3;
 
+fn print_urdf_info() {
+    match urdf_loader::load_urdf("assets/robots/urdf/sample.urdf") {
+        Ok(robot) => {
+            println!("URDF loaded: robot name = {}", robot.name);
+            println!("Links: {:?}", robot.links);
+            println!("Joints: {:?}", robot.joints);
+            println!("Visuals: {:?}", robot.visuals);
+        },
+        Err(e) => println!("Failed to load URDF: {}", e),
+    }
+}
+
+fn spawn_urdf_scene_system(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if let Ok(robot) = urdf_loader::load_urdf("assets/robots/urdf/sample.urdf") {
+        urdf_loader::spawn_urdf_scene(&mut commands, &mut meshes, &mut materials, &robot);
+    }
+}
+
 pub fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.98, 0.92, 0.84)))
@@ -213,13 +235,8 @@ pub fn main() {
             ),
         )
         .add_systems(PostStartup, setup_custom_projection_camera)
+        .add_systems(Startup, (print_urdf_info, spawn_urdf_scene_system))
         .run();
-
-    // Example: Try loading an empty URDF file
-    match urdf_loader::load_urdf("assets/robots/urdf/sample.urdf") {
-        Ok(_) => println!("URDF loaded successfully (empty scene)."),
-        Err(e) => println!("Failed to load URDF: {}", e),
-    }
 }
 
 fn render_origin(mut gizmos: Gizmos) {
