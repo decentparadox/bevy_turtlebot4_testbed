@@ -174,6 +174,7 @@ mod keyboard_controls;
 mod lidar;
 mod robot_drag;
 mod turtlebot4;
+mod urdf_loader;
 
 #[cfg(test)]
 mod tests;
@@ -181,6 +182,28 @@ mod tests;
 pub const STATIC_GROUP: Group = Group::GROUP_1;
 pub const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
 pub const CHASSIS_GROUP: Group = Group::GROUP_3;
+
+fn print_urdf_info() {
+    match urdf_loader::load_urdf("assets/robots/urdf/sample.urdf") {
+        Ok(robot) => {
+            println!("URDF loaded: robot name = {}", robot.name);
+            println!("Links: {:?}", robot.links);
+            println!("Joints: {:?}", robot.joints);
+            println!("Visuals: {:?}", robot.visuals);
+        },
+        Err(e) => println!("Failed to load URDF: {}", e),
+    }
+}
+
+fn spawn_urdf_scene_system(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if let Ok(robot) = urdf_loader::load_urdf("assets/robots/urdf/sample.urdf") {
+        urdf_loader::spawn_urdf_scene(&mut commands, &mut meshes, &mut materials, &robot);
+    }
+}
 
 pub fn main() {
     App::new()
@@ -212,6 +235,7 @@ pub fn main() {
             ),
         )
         .add_systems(PostStartup, setup_custom_projection_camera)
+        .add_systems(Startup, (print_urdf_info, spawn_urdf_scene_system))
         .run();
 }
 
