@@ -174,6 +174,7 @@ mod keyboard_controls;
 mod lidar;
 mod robot_drag;
 mod turtlebot4;
+mod urdf_loader;
 
 #[cfg(test)]
 mod tests;
@@ -213,6 +214,12 @@ pub fn main() {
         )
         .add_systems(PostStartup, setup_custom_projection_camera)
         .run();
+
+    // Example: Try loading an empty URDF file
+    match urdf_loader::load_urdf("assets/robots/urdf/sample.urdf") {
+        Ok(_) => println!("URDF loaded successfully (empty scene)."),
+        Err(e) => println!("Failed to load URDF: {}", e),
+    }
 }
 
 fn render_origin(mut gizmos: Gizmos) {
