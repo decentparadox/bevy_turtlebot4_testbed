@@ -1264,6 +1264,7 @@ dependencies = [
  "quick-xml 0.31.0",
  "rand",
  "rand_distr",
+ "regex",
  "tracing",
 ]
 
