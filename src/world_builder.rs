@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_rapier3d::{
-    geometry::{Collider, CollisionGroups, Group},
+    geometry::{Collider, CollisionGroups},
 };
 
 use crate::{STATIC_GROUP, CHASSIS_INTERNAL_GROUP, CHASSIS_GROUP};
@@ -31,7 +31,6 @@ pub fn spawn_simple_arena(
     // Wall material
     let wall_material = materials.add(StandardMaterial {
         base_color: Color::srgb(0.8, 0.8, 0.8),
-        roughness: 0.7,
         ..Default::default()
     });
     
@@ -49,7 +48,6 @@ pub fn spawn_simple_arena(
                 Mesh3d(meshes.add(Plane3d::default().mesh().size(arena_size + 1.0, arena_size + 1.0))),
                 MeshMaterial3d(materials.add(StandardMaterial {
                     base_color: Color::srgb(0.9, 0.9, 0.9),
-                    roughness: 0.8,
                     ..Default::default()
                 })),
                 Transform::from_xyz(0.0, 0.05, 0.0),
@@ -109,7 +107,7 @@ pub fn spawn_simple_arena(
 fn spawn_wall(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    _materials: &mut ResMut<Assets<StandardMaterial>>,
     material: &Handle<StandardMaterial>,
     position: Vec3,
     size: Vec3,
@@ -160,7 +158,6 @@ fn spawn_obstacle(
                 Mesh3d(meshes.add(Mesh::from(Cuboid::new(size.x, size.y, size.z)))),
                 MeshMaterial3d(materials.add(StandardMaterial {
                     base_color: color,
-                    roughness: 0.6,
                     ..Default::default()
                 })),
                 Transform::default(),
@@ -199,7 +196,6 @@ fn spawn_cylinder_obstacle(
                 }))),
                 MeshMaterial3d(materials.add(StandardMaterial {
                     base_color: color,
-                    roughness: 0.6,
                     ..Default::default()
                 })),
                 Transform::default(),
@@ -233,13 +229,11 @@ pub fn spawn_complex_obstacle(
             // Visual: More complex shape made of multiple parts
             let base_material = materials.add(StandardMaterial {
                 base_color: Color::srgb(0.6, 0.4, 0.2),
-                roughness: 0.7,
                 ..Default::default()
             });
             
             let detail_material = materials.add(StandardMaterial {
                 base_color: Color::srgb(0.8, 0.6, 0.4),
-                roughness: 0.5,
                 ..Default::default()
             });
             

@@ -4,7 +4,7 @@ use bevy::window::{Window, WindowPosition, WindowRef};
 
 use bevy_rapier3d::{
     dynamics::Velocity,
-    geometry::{Collider, CollisionGroups, Group},
+    geometry::Group,
     plugin::{NoUserData, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
 };
@@ -220,7 +220,7 @@ pub fn main() {
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(lidar::LidarPlugin)
         .add_plugins(robot_drag::RobotDragPlugin)
-        .add_asset_loader::<Mesh, stl_loader::StlAssetLoader>(stl_loader::StlAssetLoader::default())
+        .init_asset_loader::<stl_loader::StlAssetLoader>()
         .add_systems(Startup, (setup, setup_custom_projection_window))
         .add_systems(Update, robot_drag::make_robot_draggable)
         .add_systems(
@@ -321,10 +321,10 @@ fn setup(
     ));
 
     // Spawn the arena with walls and obstacles
-    world_builder::spawn_simple_arena(commands, &mut meshes, &mut materials);
+    world_builder::spawn_simple_arena(&mut commands, &mut meshes, &mut materials);
     
     // Add a complex obstacle to demonstrate visual vs physics mesh difference
-    world_builder::spawn_complex_obstacle(commands, &mut meshes, &mut materials, 
+    world_builder::spawn_complex_obstacle(&mut commands, &mut meshes, &mut materials, 
                                          Vec3::new(0.0, 0.0, -2.0), 
                                          "Complex Obstacle");
 

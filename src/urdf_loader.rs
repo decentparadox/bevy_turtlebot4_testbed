@@ -1,7 +1,3 @@
-use quick_xml::Reader;
-use quick_xml::events::Event;
-use std::fs::File;
-use std::io::BufReader;
 use bevy::prelude::*;
 use bevy_rapier3d::geometry::Collider;
 use crate::RobotChassis;
@@ -659,7 +655,8 @@ fn spawn_link_recursive(
         UrdfGeometry::Box { size } => Collider::cuboid(size[0] / 2.0, size[1] / 2.0, size[2] / 2.0),
         UrdfGeometry::Sphere { radius } => Collider::ball(*radius),
         UrdfGeometry::Cylinder { radius, length } => Collider::cylinder(*length / 2.0, *radius),
-        _ => Collider::cuboid(0.1, 0.1, 0.1),
+        UrdfGeometry::Mesh { filename: _ } => Collider::cuboid(0.1, 0.1, 0.1),
+        UrdfGeometry::Unknown => Collider::cuboid(0.1, 0.1, 0.1),
     });
     
     // Create the entity

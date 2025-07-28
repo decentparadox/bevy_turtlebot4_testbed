@@ -1,6 +1,4 @@
 use bevy::prelude::*;
-use std::path::Path;
-use stl::{StlFile, StlFormat};
 
 /// Loads an STL file and converts it to a Bevy mesh
 pub fn load_stl_mesh(path: &str) -> Result<Mesh, String> {
@@ -11,7 +9,7 @@ pub fn load_stl_mesh(path: &str) -> Result<Mesh, String> {
         .map_err(|e| format!("Failed to read STL file {}: {}", full_path, e))?;
     
     // Parse the STL file
-    let stl_file = StlFile::read(&stl_data)
+    let stl_file = stl::parse(&stl_data)
         .map_err(|e| format!("Failed to parse STL file {}: {}", full_path, e))?;
     
     // Convert to Bevy mesh
@@ -21,29 +19,23 @@ pub fn load_stl_mesh(path: &str) -> Result<Mesh, String> {
 }
 
 /// Converts an STL file to a Bevy mesh
-fn stl_to_bevy_mesh(stl_file: &StlFile) -> Mesh {
+fn stl_to_bevy_mesh(stl_file: &stl::Stl) -> Mesh {
     let mut positions = Vec::new();
     let mut normals = Vec::new();
     let mut indices = Vec::new();
     
-    match stl_file {
-        StlFile::Ascii { triangles } => {
-            for triangle in triangles {
-                add_triangle_to_mesh(triangle, &mut positions, &mut normals, &mut indices);
-            }
-        }
-        StlFile::Binary { triangles } => {
-            for triangle in triangles {
-                add_triangle_to_mesh(triangle, &mut positions, &mut normals, &mut indices);
-            }
-        }
+    for triangle in &stl_file.triangles {
+        add_triangle_to_mesh(triangle, &mut positions, &mut normals, &mut indices);
     }
     
     // Create the mesh
-    let mut mesh = Mesh::new(bevy::render::render_resource::PrimitiveTopology::TriangleList);
+    let mut mesh = Mesh::new(
+        bevy::render::render_resource::PrimitiveTopology::TriangleList,
+        bevy::render::mesh::RenderAssetUsages::RENDER_WORLD
+    );
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    mesh.set_indices(Some(bevy::render::mesh::Indices::U32(indices)));
+    mesh.insert_indices(bevy::render::mesh::Indices::U32(indices));
     
     mesh
 }
@@ -58,12 +50,12 @@ fn add_triangle_to_mesh(
     let start_index = positions.len() as u32;
     
     // Add the three vertices
-    positions.push([triangle.vertices[0].x, triangle.vertices[0].y, triangle.vertices[0].z]);
-    positions.push([triangle.vertices[1].x, triangle.vertices[1].y, triangle.vertices[1].z]);
-    positions.push([triangle.vertices[2].x, triangle.vertices[2].y, triangle.vertices[2].z]);
+    positions.push([triangle.v1[0], triangle.v1[1], triangle.v1[2]]);
+    positions.push([triangle.v2[0], triangle.v2[1], triangle.v2[2]]);
+    positions.push([triangle.v3[0], triangle.v3[1], triangle.v3[2]]);
     
     // Add the normal (same for all three vertices of the triangle)
-    let normal = [triangle.normal.x, triangle.normal.y, triangle.normal.z];
+    let normal = [triangle.normal[0], triangle.normal[1], triangle.normal[2]];
     normals.push(normal);
     normals.push(normal);
     normals.push(normal);
@@ -87,13 +79,13 @@ impl bevy::asset::AssetLoader for StlAssetLoader {
         &'a self,
         reader: &'a mut bevy::asset::io::Reader,
         _settings: &'a (),
-        load_context: &'a mut bevy::asset::LoadContext,
+        _load_context: &'a mut bevy::asset::LoadContext,
     ) -> bevy::utils::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
         Box::pin(async move {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
             
-            let stl_file = StlFile::read(&bytes)
+            let stl_file = stl::parse(&bytes)
                 .map_err(|e| format!("Failed to parse STL file: {}", e))?;
             
             Ok(stl_to_bevy_mesh(&stl_file))
