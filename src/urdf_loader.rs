@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::geometry::Collider;
 use crate::RobotChassis;
 use crate::robot_drag::DraggableRobot;
+use crate::stl_loader::load_stl_mesh;
 
 /// Parsed URDF visual element (minimal for now)
 #[derive(Debug, Clone)]
@@ -595,21 +596,50 @@ fn spawn_link_recursive(
             (mesh, mat)
         }
         UrdfGeometry::Mesh { filename } => {
-            // Create a colored box as fallback for mesh
-            let link_lower = link_name.to_lowercase();
-            let color = if link_lower.contains("wheel") {
-                Color::srgb(0.2, 0.2, 0.2) // Dark gray for wheels
-            } else if link_lower.contains("base") {
-                Color::srgb(0.7, 0.7, 0.7) // Light gray for base
-            } else {
-                Color::hsl((link_name.len() as f32 * 30.0) % 360.0, 0.7, 0.5) // Colorful for other parts
-            };
-            let mesh = meshes.add(Mesh::from(Cuboid::new(0.1, 0.1, 0.1)));
-            let mat = materials.add(StandardMaterial {
-                base_color: color,
-                ..Default::default()
-            });
-            (mesh, mat)
+            // Try to load the STL file
+            match load_stl_mesh(filename) {
+                Ok(stl_mesh) => {
+                    println!("  Successfully loaded STL mesh: {}", filename);
+                    let link_lower = link_name.to_lowercase();
+                    let color = if link_lower.contains("wheel") {
+                        Color::srgb(0.2, 0.2, 0.2) // Dark gray for wheels
+                    } else if link_lower.contains("base") {
+                        Color::srgb(0.7, 0.7, 0.7) // Light gray for base
+                    } else if link_lower.contains("shoulder") {
+                        Color::srgb(0.8, 0.8, 1.0) // Light blue for shoulders
+                    } else if link_lower.contains("leg") {
+                        Color::srgb(0.6, 0.6, 0.8) // Medium blue for legs
+                    } else if link_lower.contains("cover") {
+                        Color::srgb(0.9, 0.9, 0.9) // Light gray for covers
+                    } else {
+                        Color::hsl((link_name.len() as f32 * 30.0) % 360.0, 0.7, 0.5) // Colorful for other parts
+                    };
+                    let mesh = meshes.add(stl_mesh);
+                    let mat = materials.add(StandardMaterial {
+                        base_color: color,
+                        ..Default::default()
+                    });
+                    (mesh, mat)
+                }
+                Err(e) => {
+                    println!("  Failed to load STL mesh {}: {}, using fallback", filename, e);
+                    // Create a colored box as fallback for mesh
+                    let link_lower = link_name.to_lowercase();
+                    let color = if link_lower.contains("wheel") {
+                        Color::srgb(0.2, 0.2, 0.2) // Dark gray for wheels
+                    } else if link_lower.contains("base") {
+                        Color::srgb(0.7, 0.7, 0.7) // Light gray for base
+                    } else {
+                        Color::hsl((link_name.len() as f32 * 30.0) % 360.0, 0.7, 0.5) // Colorful for other parts
+                    };
+                    let mesh = meshes.add(Mesh::from(Cuboid::new(0.1, 0.1, 0.1)));
+                    let mat = materials.add(StandardMaterial {
+                        base_color: color,
+                        ..Default::default()
+                    });
+                    (mesh, mat)
+                }
+            }
         }
         UrdfGeometry::Unknown => {
             // fallback: colored cube

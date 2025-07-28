@@ -173,8 +173,10 @@ mod camera;
 mod keyboard_controls;
 mod lidar;
 mod robot_drag;
+mod stl_loader;
 mod turtlebot4;
 mod urdf_loader;
+mod world_builder;
 
 #[cfg(test)]
 mod tests;
@@ -218,6 +220,7 @@ pub fn main() {
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_plugins(lidar::LidarPlugin)
         .add_plugins(robot_drag::RobotDragPlugin)
+        .add_asset_loader::<Mesh, stl_loader::StlAssetLoader>(stl_loader::StlAssetLoader::default())
         .add_systems(Startup, (setup, setup_custom_projection_window))
         .add_systems(Update, robot_drag::make_robot_draggable)
         .add_systems(
@@ -317,218 +320,13 @@ fn setup(
         ViewVisibility::default(),
     ));
 
-    // Wall setup (walls)
-    let wall_height = 0.075;
-    let wall_thickness = 0.075;
-    let wall_length = 4.0;
-    let wall_color = Color::srgb(0.7, 0.7, 0.7);
-
-    // North wall
-    commands
-        .spawn(Collider::cuboid(
-            (wall_length - wall_thickness) * 0.5,
-            wall_height * 0.5,
-            wall_thickness * 0.5,
-        ))
-        .insert(CollisionGroups::new(
-            STATIC_GROUP,
-            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
-        ))
-        .insert((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(
-                wall_length - wall_thickness,
-                wall_height,
-                wall_thickness,
-            )))),
-            MeshMaterial3d(materials.add(wall_color)),
-            Transform::from_xyz(
-                -wall_thickness * 0.5,
-                wall_height * 0.5,
-                (-wall_length + wall_thickness) * 0.5,
-            ),
-            Visibility::default(),
-            InheritedVisibility::default(),
-            ViewVisibility::default(),
-        ));
-
-    // East wall
-    commands
-        .spawn(Collider::cuboid(
-            wall_thickness * 0.5,
-            wall_height * 0.5,
-            (wall_length - wall_thickness) * 0.5,
-        ))
-        .insert(CollisionGroups::new(
-            STATIC_GROUP,
-            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
-        ))
-        .insert((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(
-                wall_thickness,
-                wall_height,
-                wall_length - wall_thickness,
-            )))),
-            MeshMaterial3d(materials.add(wall_color)),
-            Transform::from_xyz(
-                (wall_length - wall_thickness) * 0.5,
-                wall_height * 0.5,
-                -wall_thickness * 0.5,
-            ),
-            Visibility::default(),
-            InheritedVisibility::default(),
-            ViewVisibility::default(),
-        ));
-
-    // Add a test screen on the east wall for camera testing
-    commands
-        .spawn((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.02, 1.0, 1.5)))), // Screen frame
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.1, 0.1, 0.1), // Dark frame
-                ..default()
-            })),
-            Transform::from_xyz((wall_length - wall_thickness) * 0.5 - 0.05, 0.5, 0.0), // On east wall
-            Visibility::default(),
-            InheritedVisibility::default(),
-            ViewVisibility::default(),
-        ))
-        .with_children(|commands| {
-            // Screen display with colorful pattern
-            commands.spawn((
-                Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.005, 0.8, 1.2)))), // Screen surface
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgb(0.2, 0.8, 1.0),        // Bright cyan
-                    emissive: LinearRgba::new(0.1, 0.4, 0.5, 1.0), // Glowing effect
-                    ..default()
-                })),
-                Transform::from_xyz(-0.008, 0.0, 0.0), // Slightly in front of frame
-                Visibility::default(),
-                InheritedVisibility::default(),
-                ViewVisibility::default(),
-            ));
-
-            // Add colorful indicator elements on the screen for camera testing
-            for i in 0..3 {
-                for j in 0..3 {
-                    let color = match (i + j) % 3 {
-                        0 => Color::srgb(1.0, 0.2, 0.2), // Red
-                        1 => Color::srgb(0.2, 1.0, 0.2), // Green
-                        _ => Color::srgb(0.2, 0.2, 1.0), // Blue
-                    };
-
-                    commands.spawn((
-                        Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.002, 0.12, 0.12)))),
-                        MeshMaterial3d(materials.add(StandardMaterial {
-                            base_color: color,
-                            emissive: LinearRgba::from(color) * 0.5,
-                            ..default()
-                        })),
-                        Transform::from_xyz(
-                            -0.012,
-                            (i as f32 - 1.0) * 0.25,
-                            (j as f32 - 1.0) * 0.35,
-                        ),
-                        Visibility::default(),
-                        InheritedVisibility::default(),
-                        ViewVisibility::default(),
-                    ));
-                }
-            }
-
-            // Add a central white reference dot
-            commands.spawn((
-                Mesh3d(meshes.add(Mesh::from(Cuboid::new(0.003, 0.06, 0.06)))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::WHITE,
-                    emissive: LinearRgba::new(1.0, 1.0, 1.0, 1.0),
-                    ..default()
-                })),
-                Transform::from_xyz(-0.015, 0.0, 0.0),
-                Visibility::default(),
-                InheritedVisibility::default(),
-                ViewVisibility::default(),
-            ));
-        });
-
-    // South wall
-    commands
-        .spawn(Collider::cuboid(
-            (wall_length - wall_thickness) * 0.5,
-            wall_height * 0.5,
-            wall_thickness * 0.5,
-        ))
-        .insert(CollisionGroups::new(
-            STATIC_GROUP,
-            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
-        ))
-        .insert((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(
-                wall_length - wall_thickness,
-                wall_height,
-                wall_thickness,
-            )))),
-            MeshMaterial3d(materials.add(wall_color)),
-            Transform::from_xyz(
-                wall_thickness * 0.5,
-                wall_height * 0.5,
-                (wall_length - wall_thickness) * 0.5,
-            ),
-            Visibility::default(),
-            InheritedVisibility::default(),
-            ViewVisibility::default(),
-        ));
-
-    // West wall
-    commands
-        .spawn(Collider::cuboid(
-            wall_thickness * 0.5,
-            wall_height * 0.5,
-            (wall_length - wall_thickness) * 0.5,
-        ))
-        .insert(CollisionGroups::new(
-            STATIC_GROUP,
-            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
-        ))
-        .insert((
-            Mesh3d(meshes.add(Mesh::from(Cuboid::new(
-                wall_thickness,
-                wall_height,
-                wall_length - wall_thickness,
-            )))),
-            MeshMaterial3d(materials.add(wall_color)),
-            Transform::from_xyz(
-                (-wall_length + wall_thickness) * 0.5,
-                wall_height * 0.5,
-                wall_thickness * 0.5,
-            ),
-            Visibility::default(),
-            InheritedVisibility::default(),
-            ViewVisibility::default(),
-        ));
-
-    // Floor
-    commands
-        .spawn(Collider::cuboid(2.0, 0.1, 2.0))
-        .insert(CollisionGroups::new(
-            STATIC_GROUP,
-            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
-        ))
-        .insert((
-            Transform::from_xyz(0.0, -0.1, 0.0),
-            Visibility::default(),
-            InheritedVisibility::default(),
-            ViewVisibility::default(),
-        ))
-        .with_children(|commands| {
-            commands.spawn((
-                Mesh3d(meshes.add(Plane3d::default().mesh().size(4.0, 4.0))),
-                MeshMaterial3d(materials.add(Color::srgba(0.9, 0.9, 0.9, 1.0))),
-                Transform::from_xyz(0.0, 0.1, 0.0),
-                Visibility::default(),
-                InheritedVisibility::default(),
-                ViewVisibility::default(),
-            ));
-        });
+    // Spawn the arena with walls and obstacles
+    world_builder::spawn_simple_arena(commands, &mut meshes, &mut materials);
+    
+    // Add a complex obstacle to demonstrate visual vs physics mesh difference
+    world_builder::spawn_complex_obstacle(commands, &mut meshes, &mut materials, 
+                                         Vec3::new(0.0, 0.0, -2.0), 
+                                         "Complex Obstacle");
 
     // Robot
     turtlebot4::spawn(
