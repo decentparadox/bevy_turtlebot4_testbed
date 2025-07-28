@@ -162,7 +162,7 @@ regex = "1.10"  # Text processing
 ## Development
 
 ### Adding New STL Files
-1. Place STL files in `assets/robots/urdf/`
+1. Place STL files in `assets/robots/urdf/` (STL files are already provided)
 2. Reference them in your URDF file
 3. The system will automatically load them
 

@@ -148,7 +148,7 @@ Collider::cuboid(0.4, 0.3, 0.4)
 - `Cargo.toml` - Added STL dependency
 
 ### Generated Files
-- `assets/robots/urdf/*.STL` - Placeholder STL files for demonstration
+- `assets/robots/urdf/*.STL` - Real STL files for robot visual meshes (provided by user)
 
 ## Usage Examples
 
