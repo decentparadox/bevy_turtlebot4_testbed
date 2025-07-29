@@ -175,6 +175,7 @@ mod lidar;
 mod robot_drag;
 mod turtlebot4;
 mod urdf_loader;
+mod stl_loader;
 
 #[cfg(test)]
 mod tests;
