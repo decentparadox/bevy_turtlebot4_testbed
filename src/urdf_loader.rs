@@ -1,7 +1,3 @@
-use quick_xml::Reader;
-use quick_xml::events::Event;
-use std::fs::File;
-use std::io::BufReader;
 use bevy::prelude::*;
 use bevy_rapier3d::geometry::Collider;
 use crate::RobotChassis;
@@ -692,14 +688,14 @@ fn spawn_link_recursive(
                                                 .map(|chunk| [chunk[0], chunk[1], chunk[2]])
                                                 .collect();
                                             
-                                            Collider::trimesh(vertices, indices)
+                                            Collider::trimesh(vertices, indices).expect("Failed to create trimesh collider")
                                         }
                                         bevy::render::mesh::Indices::U16(idx) => {
                                             let indices: Vec<[u32; 3]> = idx.chunks_exact(3)
                                                 .map(|chunk| [chunk[0] as u32, chunk[1] as u32, chunk[2] as u32])
                                                 .collect();
                                             
-                                            Collider::trimesh(vertices, indices)
+                                            Collider::trimesh(vertices, indices).expect("Failed to create trimesh collider")
                                         }
                                     }
                                 } else {
