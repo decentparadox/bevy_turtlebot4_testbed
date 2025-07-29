@@ -1,11 +1,9 @@
-use quick_xml::Reader;
-use quick_xml::events::Event;
-use std::fs::File;
-use std::io::BufReader;
 use bevy::prelude::*;
 use bevy_rapier3d::geometry::Collider;
 use crate::RobotChassis;
 use crate::robot_drag::DraggableRobot;
+use crate::stl_loader;
+use std::path::PathBuf;
 
 /// Parsed URDF visual element (minimal for now)
 #[derive(Debug, Clone)]
@@ -595,21 +593,59 @@ fn spawn_link_recursive(
             (mesh, mat)
         }
         UrdfGeometry::Mesh { filename } => {
-            // Create a colored box as fallback for mesh
-            let link_lower = link_name.to_lowercase();
-            let color = if link_lower.contains("wheel") {
-                Color::srgb(0.2, 0.2, 0.2) // Dark gray for wheels
-            } else if link_lower.contains("base") {
-                Color::srgb(0.7, 0.7, 0.7) // Light gray for base
-            } else {
-                Color::hsl((link_name.len() as f32 * 30.0) % 360.0, 0.7, 0.5) // Colorful for other parts
-            };
-            let mesh = meshes.add(Mesh::from(Cuboid::new(0.1, 0.1, 0.1)));
-            let mat = materials.add(StandardMaterial {
-                base_color: color,
-                ..Default::default()
-            });
-            (mesh, mat)
+            // Try to load the STL file
+            println!("Attempting to load STL file: {}", filename);
+            
+            // Construct the path - assuming STL files are in assets/robots/urdf/
+            let base_path = PathBuf::from("assets/robots/urdf");
+            let stl_path = base_path.join(filename);
+            
+            match stl_loader::load_stl_file(&stl_path) {
+                Ok(mesh_data) => {
+                    println!("Successfully loaded STL: {}", filename);
+                    let mesh = meshes.add(mesh_data);
+                    
+                    // Color based on link name
+                    let link_lower = link_name.to_lowercase();
+                    let color = if link_lower.contains("wheel") {
+                        Color::srgb(0.2, 0.2, 0.2) // Dark gray for wheels
+                    } else if link_lower.contains("base") {
+                        Color::srgb(0.7, 0.7, 0.7) // Light gray for base
+                    } else if link_lower.contains("cover") {
+                        Color::srgb(0.8, 0.85, 0.9) // Light blue-gray for covers
+                    } else if link_lower.contains("shoulder") || link_lower.contains("leg") {
+                        Color::srgb(0.82, 0.82, 1.0) // Light purple-blue for limbs
+                    } else {
+                        Color::hsl((link_name.len() as f32 * 30.0) % 360.0, 0.7, 0.5) // Colorful for other parts
+                    };
+                    
+                    let mat = materials.add(StandardMaterial {
+                        base_color: color,
+                        ..Default::default()
+                    });
+                    (mesh, mat)
+                }
+                Err(e) => {
+                    println!("Failed to load STL file '{}': {}", filename, e);
+                    println!("Falling back to colored box");
+                    
+                    // Fallback to colored box
+                    let link_lower = link_name.to_lowercase();
+                    let color = if link_lower.contains("wheel") {
+                        Color::srgb(0.2, 0.2, 0.2) // Dark gray for wheels
+                    } else if link_lower.contains("base") {
+                        Color::srgb(0.7, 0.7, 0.7) // Light gray for base
+                    } else {
+                        Color::hsl((link_name.len() as f32 * 30.0) % 360.0, 0.7, 0.5) // Colorful for other parts
+                    };
+                    let mesh = meshes.add(Mesh::from(Cuboid::new(0.1, 0.1, 0.1)));
+                    let mat = materials.add(StandardMaterial {
+                        base_color: color,
+                        ..Default::default()
+                    });
+                    (mesh, mat)
+                }
+            }
         }
         UrdfGeometry::Unknown => {
             // fallback: colored cube
@@ -629,6 +665,60 @@ fn spawn_link_recursive(
         UrdfGeometry::Box { size } => Collider::cuboid(size[0] / 2.0, size[1] / 2.0, size[2] / 2.0),
         UrdfGeometry::Sphere { radius } => Collider::ball(*radius),
         UrdfGeometry::Cylinder { radius, length } => Collider::cylinder(*length / 2.0, *radius),
+        UrdfGeometry::Mesh { filename } => {
+            // Try to load the STL for collision
+            let base_path = PathBuf::from("assets/robots/urdf");
+            let stl_path = base_path.join(filename);
+            
+            match stl_loader::load_stl_file(&stl_path) {
+                Ok(mesh_data) => {
+                    println!("Creating trimesh collider from STL: {}", filename);
+                    // Extract vertices and indices from the mesh
+                    if let Some(vertex_attr) = mesh_data.attribute(Mesh::ATTRIBUTE_POSITION) {
+                        match vertex_attr {
+                            bevy::render::mesh::VertexAttributeValues::Float32x3(positions) => {
+                                let vertices: Vec<Vec3> = positions.iter()
+                                    .map(|p| Vec3::new(p[0], p[1], p[2]))
+                                    .collect();
+                                
+                                if let Some(indices) = mesh_data.indices() {
+                                    match indices {
+                                        bevy::render::mesh::Indices::U32(idx) => {
+                                            let indices: Vec<[u32; 3]> = idx.chunks_exact(3)
+                                                .map(|chunk| [chunk[0], chunk[1], chunk[2]])
+                                                .collect();
+                                            
+                                            Collider::trimesh(vertices, indices).expect("Failed to create trimesh collider")
+                                        }
+                                        bevy::render::mesh::Indices::U16(idx) => {
+                                            let indices: Vec<[u32; 3]> = idx.chunks_exact(3)
+                                                .map(|chunk| [chunk[0] as u32, chunk[1] as u32, chunk[2] as u32])
+                                                .collect();
+                                            
+                                            Collider::trimesh(vertices, indices).expect("Failed to create trimesh collider")
+                                        }
+                                    }
+                                } else {
+                                    println!("No indices found in STL mesh, using default collider");
+                                    Collider::cuboid(0.1, 0.1, 0.1)
+                                }
+                            }
+                            _ => {
+                                println!("Unexpected vertex format, using default collider");
+                                Collider::cuboid(0.1, 0.1, 0.1)
+                            }
+                        }
+                    } else {
+                        println!("No vertices found in STL mesh, using default collider");
+                        Collider::cuboid(0.1, 0.1, 0.1)
+                    }
+                }
+                Err(e) => {
+                    println!("Failed to load collision STL '{}': {}, using default collider", filename, e);
+                    Collider::cuboid(0.1, 0.1, 0.1)
+                }
+            }
+        }
         _ => Collider::cuboid(0.1, 0.1, 0.1),
     });
     
