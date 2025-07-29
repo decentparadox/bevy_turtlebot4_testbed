@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::render_resource::PrimitiveTopology;
+use bevy::render::render_asset::RenderAssetUsages;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -69,21 +70,21 @@ fn parse_stl_bytes(bytes: &[u8]) -> Result<Mesh, StlError> {
     let stl = stl_io::read_stl(&mut cursor)
         .map_err(|e| StlError::Parse(format!("Failed to parse STL: {}", e)))?;
     
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD);
     
     // Extract vertices and compute normals
     let mut positions = Vec::new();
     let mut normals = Vec::new();
     let mut indices = Vec::new();
     
-    for (i, triangle) in stl.faces.iter().enumerate() {
+    for (i, face) in stl.faces.iter().enumerate() {
         let base_index = (i * 3) as u32;
         
         // Add vertices
         for j in 0..3 {
-            let vertex = triangle.vertices[j];
+            let vertex = &face.vertices[j];
             positions.push([vertex[0], vertex[1], vertex[2]]);
-            normals.push([triangle.normal[0], triangle.normal[1], triangle.normal[2]]);
+            normals.push([face.normal[0], face.normal[1], face.normal[2]]);
         }
         
         // Add indices
@@ -106,21 +107,21 @@ pub fn load_stl_file(path: &Path) -> Result<Mesh, StlError> {
     let stl = stl_io::read_stl(&mut reader)
         .map_err(|e| StlError::Parse(format!("Failed to parse STL: {}", e)))?;
     
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD);
     
     // Extract vertices and compute normals
     let mut positions = Vec::new();
     let mut normals = Vec::new();
     let mut indices = Vec::new();
     
-    for (i, triangle) in stl.faces.iter().enumerate() {
+    for (i, face) in stl.faces.iter().enumerate() {
         let base_index = (i * 3) as u32;
         
         // Add vertices
         for j in 0..3 {
-            let vertex = triangle.vertices[j];
+            let vertex = &face.vertices[j];
             positions.push([vertex[0], vertex[1], vertex[2]]);
-            normals.push([triangle.normal[0], triangle.normal[1], triangle.normal[2]]);
+            normals.push([face.normal[0], face.normal[1], face.normal[2]]);
         }
         
         // Add indices
