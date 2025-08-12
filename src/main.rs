@@ -174,7 +174,7 @@ mod keyboard_controls;
 mod lidar;
 mod robot_drag;
 mod turtlebot4;
-mod urdf_loader;
+mod sdf_loader;
 
 #[cfg(test)]
 mod tests;
@@ -183,26 +183,57 @@ pub const STATIC_GROUP: Group = Group::GROUP_1;
 pub const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
 pub const CHASSIS_GROUP: Group = Group::GROUP_3;
 
-fn print_urdf_info() {
-    match urdf_loader::load_urdf("assets/robots/urdf/sample.urdf") {
-        Ok(robot) => {
-            println!("URDF loaded: robot name = {}", robot.name);
-            println!("Links: {:?}", robot.links);
-            println!("Joints: {:?}", robot.joints);
-            println!("Visuals: {:?}", robot.visuals);
-        },
-        Err(e) => println!("Failed to load URDF: {}", e),
-    }
-}
-
-fn spawn_urdf_scene_system(
+/// System to load SDF world from file
+fn load_sdf_world_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
-    if let Ok(robot) = urdf_loader::load_urdf("assets/robots/urdf/sample.urdf") {
-        urdf_loader::spawn_urdf_scene(&mut commands, &mut meshes, &mut materials, &robot);
+    match sdf_loader::load_sdf("assets/worlds/simple_world.sdf") {
+        Ok(sdf_world) => {
+            info!("Loading SDF world: {}", sdf_world.name);
+            sdf_loader::spawn_sdf_world(&mut commands, &mut meshes, &mut materials, &asset_server, &sdf_world);
+        },
+        Err(e) => {
+            error!("Failed to load SDF world: {}", e);
+            // Fallback to simple world if SDF loading fails
+            spawn_fallback_world(&mut commands, &mut meshes, &mut materials);
+        }
     }
+}
+
+/// Fallback world if SDF loading fails
+fn spawn_fallback_world(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+) {
+    info!("Spawning fallback world");
+    
+    // Simple ground plane
+    commands
+        .spawn(Collider::cuboid(10.0, 0.1, 10.0))
+        .insert(CollisionGroups::new(
+            STATIC_GROUP,
+            CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
+        ))
+        .insert((
+            Transform::from_xyz(0.0, -0.1, 0.0),
+            Visibility::default(),
+            InheritedVisibility::default(),
+            ViewVisibility::default(),
+        ))
+        .with_children(|commands| {
+            commands.spawn((
+                Mesh3d(meshes.add(Plane3d::default().mesh().size(20.0, 20.0))),
+                MeshMaterial3d(materials.add(Color::srgba(0.9, 0.9, 0.9, 1.0))),
+                Transform::from_xyz(0.0, 0.1, 0.0),
+                Visibility::default(),
+                InheritedVisibility::default(),
+                ViewVisibility::default(),
+            ));
+        });
 }
 
 pub fn main() {
@@ -235,7 +266,7 @@ pub fn main() {
             ),
         )
         .add_systems(PostStartup, setup_custom_projection_camera)
-        .add_systems(Startup, (print_urdf_info, spawn_urdf_scene_system))
+        .add_systems(Startup, load_sdf_world_system)
         .run();
 }
 
