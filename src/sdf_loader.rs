@@ -239,6 +239,22 @@ fn parse_sdf_content(content: &str) -> Result<SdfWorld, String> {
                     "geometry" => {
                         context.current_geometry = None;
                     }
+                    "box" => {
+                        // Box geometry will be set when size is parsed
+                    }
+                    "sphere" => {
+                        // Sphere geometry will be set when radius is parsed
+                    }
+                    "cylinder" => {
+                        // Cylinder geometry will be set when radius and length are parsed
+                    }
+                    "plane" => {
+                        // Initialize plane geometry - normal and size will be parsed separately
+                        context.current_geometry = Some(SdfGeometry::Plane { 
+                            normal: Vec3::new(0.0, 0.0, 1.0), 
+                            size: Vec2::new(1.0, 1.0) 
+                        });
+                    }
                     "material" => {
                         context.current_material = Some(SdfMaterial {
                             ambient: None,
@@ -328,7 +344,12 @@ fn parse_sdf_content(content: &str) -> Result<SdfWorld, String> {
                         }
                     }
                     "size" => {
-                        if let Some(size) = parse_vec3(&context.current_text) {
+                        // Check if this is for a plane (needs Vec2) or box (needs Vec3)
+                        if let Some(SdfGeometry::Plane { normal, size: _ }) = &context.current_geometry {
+                            if let Some(size) = parse_vec2(&context.current_text) {
+                                context.current_geometry = Some(SdfGeometry::Plane { normal: *normal, size });
+                            }
+                        } else if let Some(size) = parse_vec3(&context.current_text) {
                             context.current_geometry = Some(SdfGeometry::Box { size });
                         }
                     }
@@ -347,9 +368,12 @@ fn parse_sdf_content(content: &str) -> Result<SdfWorld, String> {
                     }
                     "normal" => {
                         if let Some(normal) = parse_vec3(&context.current_text) {
-                            // For planes, we need both normal and size
-                            if let Some(size) = parse_vec2(&context.current_text) {
-                                context.current_geometry = Some(SdfGeometry::Plane { normal, size });
+                            // Store normal for plane geometry - size will be parsed separately
+                            if let Some(SdfGeometry::Plane { normal: _, size }) = &context.current_geometry {
+                                context.current_geometry = Some(SdfGeometry::Plane { normal, size: *size });
+                            } else {
+                                // Create plane with default size, will be updated when size is parsed
+                                context.current_geometry = Some(SdfGeometry::Plane { normal, size: Vec2::new(1.0, 1.0) });
                             }
                         }
                     }
