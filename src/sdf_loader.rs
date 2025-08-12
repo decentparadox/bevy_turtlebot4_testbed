@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_rapier3d::geometry::{Collider, CollisionGroups, Group};
+use bevy_rapier3d::dynamics::{RigidBody, AdditionalMassProperties};
 use std::fs;
 use quick_xml::Reader;
 use quick_xml::events::{Event, BytesStart, BytesEnd, BytesText};
@@ -590,16 +591,22 @@ fn spawn_sdf_link(
             let collider = create_collider(&collision.geometry);
             entity_cmd.insert(collider);
             
-            // Add collision groups based on whether the model is static
-            if model.static_ {
+            // Determine mass from inertial properties
+            let mass = link.inertial.as_ref().map(|i| i.mass).unwrap_or(1.0);
+            
+            // Add rigid body and collision groups based on whether the model is static
+            if model.static_ || mass <= 0.0 {
+                entity_cmd.insert(RigidBody::Fixed);
                 entity_cmd.insert(CollisionGroups::new(
                     STATIC_GROUP,
                     CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
                 ));
             } else {
+                entity_cmd.insert(RigidBody::Dynamic);
+                entity_cmd.insert(AdditionalMassProperties::Mass(mass));
                 entity_cmd.insert(CollisionGroups::new(
                     CHASSIS_GROUP,
-                    STATIC_GROUP | CHASSIS_INTERNAL_GROUP,
+                    STATIC_GROUP | CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
                 ));
             }
         }
