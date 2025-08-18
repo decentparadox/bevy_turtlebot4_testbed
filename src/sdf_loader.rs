@@ -1,10 +1,9 @@
 use bevy::prelude::*;
 use bevy_rapier3d::geometry::{Collider, CollisionGroups, Group};
-use bevy_rapier3d::dynamics::{RigidBody, AdditionalMassProperties};
+use bevy_rapier3d::dynamics::{RigidBody, AdditionalMassProperties, Damping};
 use std::fs;
 use quick_xml::Reader;
-use quick_xml::events::{Event, BytesStart, BytesEnd, BytesText};
-use std::io::BufReader;
+use quick_xml::events::{Event, BytesStart};
 
 /// SDF World structure representing a complete simulation world
 #[derive(Debug, Clone)]
@@ -34,6 +33,8 @@ pub struct SdfLink {
     pub visual: Option<SdfVisual>,
     pub collision: Option<SdfCollision>,
     pub inertial: Option<SdfInertial>,
+    pub linear_damping: Option<f32>,
+    pub angular_damping: Option<f32>,
 }
 
 /// SDF Visual structure for visual representation
@@ -120,7 +121,12 @@ pub struct SdfScene {
 #[derive(Debug, Clone)]
 pub struct SdfInertial {
     pub mass: f32,
-    pub inertia: Vec3,
+    pub ixx: f32,
+    pub iyy: f32,
+    pub izz: f32,
+    pub ixy: f32,
+    pub ixz: f32,
+    pub iyz: f32,
     pub pose: SdfPose,
 }
 
@@ -137,6 +143,7 @@ struct XmlContext {
     current_material: Option<SdfMaterial>,
     current_pose: Option<SdfPose>,
     current_text: String,
+    in_velocity_decay: bool,
 }
 
 impl XmlContext {
@@ -152,6 +159,7 @@ impl XmlContext {
             current_material: None,
             current_pose: None,
             current_text: String::new(),
+            in_velocity_decay: false,
         }
     }
 }
@@ -213,6 +221,8 @@ fn parse_sdf_content(content: &str) -> Result<SdfWorld, String> {
                             visual: None,
                             collision: None,
                             inertial: None,
+                            linear_damping: None,
+                            angular_damping: None,
                         });
                     }
                     "visual" => {
@@ -233,9 +243,17 @@ fn parse_sdf_content(content: &str) -> Result<SdfWorld, String> {
                     "inertial" => {
                         context.current_inertial = Some(SdfInertial {
                             mass: 0.0,
-                            inertia: Vec3::ZERO,
+                            ixx: 0.0,
+                            iyy: 0.0,
+                            izz: 0.0,
+                            ixy: 0.0,
+                            ixz: 0.0,
+                            iyz: 0.0,
                             pose: SdfPose::default(),
                         });
+                    }
+                    "velocity_decay" => {
+                        context.in_velocity_decay = true;
                     }
                     "geometry" => {
                         context.current_geometry = None;
@@ -307,6 +325,36 @@ fn parse_sdf_content(content: &str) -> Result<SdfWorld, String> {
                             }
                         }
                     }
+                    "ixx" => {
+                        if let Some(inertial) = &mut context.current_inertial {
+                            if let Ok(v) = context.current_text.trim().parse::<f32>() { inertial.ixx = v; }
+                        }
+                    }
+                    "iyy" => {
+                        if let Some(inertial) = &mut context.current_inertial {
+                            if let Ok(v) = context.current_text.trim().parse::<f32>() { inertial.iyy = v; }
+                        }
+                    }
+                    "izz" => {
+                        if let Some(inertial) = &mut context.current_inertial {
+                            if let Ok(v) = context.current_text.trim().parse::<f32>() { inertial.izz = v; }
+                        }
+                    }
+                    "ixy" => {
+                        if let Some(inertial) = &mut context.current_inertial {
+                            if let Ok(v) = context.current_text.trim().parse::<f32>() { inertial.ixy = v; }
+                        }
+                    }
+                    "ixz" => {
+                        if let Some(inertial) = &mut context.current_inertial {
+                            if let Ok(v) = context.current_text.trim().parse::<f32>() { inertial.ixz = v; }
+                        }
+                    }
+                    "iyz" => {
+                        if let Some(inertial) = &mut context.current_inertial {
+                            if let Ok(v) = context.current_text.trim().parse::<f32>() { inertial.iyz = v; }
+                        }
+                    }
                     "gravity" => {
                         if let Some(gravity) = parse_vec3(&context.current_text) {
                             world.physics = Some(SdfPhysics {
@@ -327,6 +375,24 @@ fn parse_sdf_content(content: &str) -> Result<SdfWorld, String> {
                                     ambient: color,
                                     background: Color::srgba(0.7, 0.7, 0.7, 1.0),
                                 });
+                            }
+                        }
+                    }
+                    "linear" => {
+                        if context.in_velocity_decay {
+                            if let Ok(v) = context.current_text.trim().parse::<f32>() {
+                                if let Some(link) = &mut context.current_link {
+                                    link.linear_damping = Some(v);
+                                }
+                            }
+                        }
+                    }
+                    "angular" => {
+                        if context.in_velocity_decay {
+                            if let Ok(v) = context.current_text.trim().parse::<f32>() {
+                                if let Some(link) = &mut context.current_link {
+                                    link.angular_damping = Some(v);
+                                }
                             }
                         }
                     }
@@ -414,6 +480,9 @@ fn parse_sdf_content(content: &str) -> Result<SdfWorld, String> {
                                 link.inertial = Some(inertial);
                             }
                         }
+                    }
+                    "velocity_decay" => {
+                        context.in_velocity_decay = false;
                     }
                     "link" => {
                         if let Some(link) = context.current_link.take() {
@@ -524,9 +593,9 @@ pub fn spawn_sdf_world(
         });
     }
     
-    // Apply physics settings
+    // Apply physics settings (informative)
     if let Some(physics) = &world.physics {
-        println!("Physics settings: gravity={:?}, max_step_size={}", physics.gravity, physics.max_step_size);
+        println!("Physics settings (SDF): gravity={:?}, max_step_size={}", physics.gravity, physics.max_step_size);
     }
     
     // Spawn all models
@@ -593,7 +662,7 @@ fn spawn_sdf_link(
             
             // Determine mass from inertial properties
             let mass = link.inertial.as_ref().map(|i| i.mass).unwrap_or(1.0);
-            
+
             // Add rigid body and collision groups based on whether the model is static
             if model.static_ || mass <= 0.0 {
                 entity_cmd.insert(RigidBody::Fixed);
@@ -603,11 +672,22 @@ fn spawn_sdf_link(
                 ));
             } else {
                 entity_cmd.insert(RigidBody::Dynamic);
+                // Apply mass; inertia tensor support will be wired via Rapier MassProperties in a follow-up system
                 entity_cmd.insert(AdditionalMassProperties::Mass(mass));
                 entity_cmd.insert(CollisionGroups::new(
                     CHASSIS_GROUP,
                     STATIC_GROUP | CHASSIS_INTERNAL_GROUP | CHASSIS_GROUP,
                 ));
+                // Use Rapier default gravity
+            }
+
+            // Apply per-link damping if specified
+            if link.linear_damping.is_some() || link.angular_damping.is_some() {
+                let d = Damping {
+                    linear_damping: link.linear_damping.unwrap_or(0.0),
+                    angular_damping: link.angular_damping.unwrap_or(0.0),
+                };
+                entity_cmd.insert(d);
             }
         }
     }
@@ -724,8 +804,12 @@ fn spawn_sdf_light(commands: &mut Commands, light: &SdfLight) {
 
 /// Converts SDF pose to Bevy transform
 fn sdf_pose_to_transform(pose: &SdfPose) -> Transform {
-    let translation = pose.xyz;
-    let rotation = Quat::from_euler(EulerRot::XYZ, pose.rpy.x, pose.rpy.y, pose.rpy.z);
+    // Convert SDF (Z-up) coordinates to Bevy/Rapier (Y-up): (x, y, z) -> (x, z, y)
+    let translation = Vec3::new(pose.xyz.x, pose.xyz.z, pose.xyz.y);
+    // Convert orientation: rotate frames -90° around X so Z-up becomes Y-up
+    let rot_sdf = Quat::from_euler(EulerRot::XYZ, pose.rpy.x, pose.rpy.y, pose.rpy.z);
+    let conv = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+    let rotation = conv * rot_sdf;
     Transform::from_translation(translation).with_rotation(rotation)
 }
 
@@ -733,3 +817,5 @@ fn sdf_pose_to_transform(pose: &SdfPose) -> Transform {
 pub const STATIC_GROUP: Group = Group::GROUP_1;
 pub const CHASSIS_INTERNAL_GROUP: Group = Group::GROUP_2;
 pub const CHASSIS_GROUP: Group = Group::GROUP_3;
+
+// No custom gravity system; Rapier's global gravity (0, -9.81, 0) applies.
