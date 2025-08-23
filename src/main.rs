@@ -1,13 +1,23 @@
 use bevy::prelude::*;
 use bevy::render::camera::{CameraProjection, RenderTarget, SubCameraView};
 use bevy::window::{Window, WindowPosition, WindowRef};
-
 use bevy_rapier3d::{
     dynamics::Velocity,
     geometry::{Collider, CollisionGroups, Group},
     plugin::{NoUserData, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
 };
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(name = "bevy_turtlebot4_testbed")]
+#[command(version = "1.0")]
+#[command(about = "Turtlebot4 and UR3e Robotic Arm Simulation")]
+struct Args {
+    /// Robot to spawn: turtlebot or robotic-arm
+    #[arg(short, long, default_value = "turtlebot")]
+    robot: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct ObliquePerspectiveProjection {
@@ -175,6 +185,8 @@ mod lidar;
 mod robot_drag;
 mod turtlebot4;
 mod sdf_loader;
+mod robotic_arm;
+mod drag;
 
 #[cfg(test)]
 mod tests;
@@ -237,14 +249,16 @@ fn spawn_fallback_world(
 }
 
 pub fn main() {
-    App::new()
+    let args = Args::parse();
+
+    let mut app_binding = App::new();
+    let app_binding = app_binding
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
+
         .add_plugins(lidar::LidarPlugin)
         .add_plugins(robot_drag::RobotDragPlugin)
-        .add_systems(Startup, (setup_camera_and_robot, setup_custom_projection_window))
-        .add_systems(Update, robot_drag::make_robot_draggable)
         .add_systems(
             Update,
             (
@@ -259,9 +273,32 @@ pub fn main() {
                 render_origin,
             ),
         )
-        .add_systems(PostStartup, setup_custom_projection_camera)
-        .add_systems(Startup, load_sdf_world_system)
-        .run();
+;
+
+    // Setup robot-specific systems based on CLI args
+    let app = match args.robot.as_str() {
+        "turtlebot" => {
+            app_binding
+                .add_systems(Startup, (setup_camera_and_robot, setup_custom_projection_window))
+                .add_systems(PostStartup, setup_custom_projection_camera)
+                .add_systems(Update, robot_drag::make_robot_draggable)
+                .add_systems(Startup, load_sdf_world_system)
+        }
+        "robotic-arm" => {
+            app_binding
+                .add_systems(Startup, robotic_arm::setup)
+                .add_systems(Update, drag::drag_system)
+        }
+        _ => {
+            eprintln!("Unknown robot type: {}. Using turtlebot as default.", args.robot);
+            app_binding
+                .add_systems(Startup, (setup_camera_and_robot, setup_custom_projection_window))
+                .add_systems(Update, robot_drag::make_robot_draggable)
+                .add_systems(Startup, load_sdf_world_system)
+        }
+    };
+
+    app.run();
 }
 
 fn render_origin(mut gizmos: Gizmos) {
