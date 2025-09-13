@@ -97,6 +97,7 @@ fn spawn_ur3e_arm(
             .insert(ColliderMassProperties::Mass(LINK1_MASS))
             .insert(ImpulseJoint::new(base, TypedJoint::GenericJoint(base_link1_joint.build())))
             .insert(Draggable)
+            .insert(DraggableBundle::default())
             .with_children(|commands| {
                 let transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0))
                     .with_rotation(Quat::from_euler(EulerRot::XYZ,
@@ -125,6 +126,7 @@ fn spawn_ur3e_arm(
             .insert(ColliderMassProperties::Mass(LINK2_MASS))
             .insert(ImpulseJoint::new(link1, TypedJoint::GenericJoint(link1_link2_joint.build())))
             .insert(Draggable)
+            .insert(DraggableBundle::default())
             .with_children(|commands| {
                 const LINK2_MESH_OFFSET: f32 = -0.1179571;
                 let transform = Transform::from_xyz(0.0, LINK2_MESH_OFFSET, 0.0)
@@ -151,6 +153,7 @@ fn spawn_ur3e_arm(
             .insert(ColliderMassProperties::Mass(LINK3_MASS))
             .insert(ImpulseJoint::new(link2, TypedJoint::GenericJoint(link2_link3_joint.build())))
             .insert(Draggable)
+            .insert(DraggableBundle::default())
             .with_children(|commands| {
                 const LINK3_MESH_OFFSET: f32 = 0.109600;
                 let transform = Transform::from_xyz(0.0, LINK3_MESH_OFFSET, 0.0)
@@ -180,6 +183,7 @@ fn spawn_ur3e_arm(
             .insert(ColliderMassProperties::Mass(LINK4_MASS))
             .insert(ImpulseJoint::new(link3, TypedJoint::GenericJoint(link3_link4_joint.build())))
             .insert(Draggable)
+            .insert(DraggableBundle::default())
             .with_children(|commands| {
                 const LINK4_MESH_OFFSET: f32 = 0.00172307;
                 let transform = Transform::from_xyz(0.0, LINK4_MESH_OFFSET, 0.0)
@@ -209,6 +213,7 @@ fn spawn_ur3e_arm(
             .insert(ColliderMassProperties::Mass(LINK5_MASS))
             .insert(ImpulseJoint::new(link4, TypedJoint::GenericJoint(link4_link5_joint.build())))
             .insert(Draggable)
+            .insert(DraggableBundle::default())
             .with_children(|commands| {
                 const LINK5_MESH_OFFSET: f32 = 0.00499116;
                 let transform = Transform::from_xyz(0.0, LINK5_MESH_OFFSET, 0.0)
