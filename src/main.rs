@@ -286,8 +286,15 @@ pub fn main() {
         }
         "robotic-arm" => {
             app_binding
+                .insert_resource(robotic_arm::JointTargets::default())
                 .add_systems(Startup, robotic_arm::setup)
-                .add_systems(Update, drag::drag_system)
+                .add_systems(Update, (
+                    robotic_arm::keyboard_input, 
+                    drag::drag_system,
+                    camera::update_camera_system,
+                    camera::accumulate_mouse_events_system,
+                    render_origin,
+                ))
         }
         _ => {
             eprintln!("Unknown robot type: {}. Using turtlebot as default.", args.robot);
@@ -342,4 +349,47 @@ fn setup_camera_and_robot(
         &Transform::from_xyz(0.0, 0.5, 0.0),
     );
 
+}
+
+fn setup_arm_camera(mut commands: Commands) {
+    let translation = Vec3::new(3.0, 3.0, 3.0);
+    let focus = Vec3::ZERO;
+    let transform = Transform::from_translation(translation).looking_at(focus, Vec3::Y);
+
+    // Setup camera for robotic arm viewing
+    commands
+        .spawn((
+            Camera3d::default(),
+            transform,
+            Visibility::default(),
+            InheritedVisibility::default(),
+            ViewVisibility::default(),
+            Camera {
+                order: 1,
+                is_active: true,
+                ..default()
+            },
+        ))
+        .insert(camera::PanOrbitCamera {
+            focus,
+            radius: translation.length(),
+            ..default()
+        });
+
+    // Add some basic lighting for better visibility
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 10000.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, -0.5, 0.0)),
+    ));
+
+    // Add ambient lighting
+    commands.insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 300.0,
+        affects_lightmapped_meshes: true,
+    });
 }

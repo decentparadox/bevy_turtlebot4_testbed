@@ -2,9 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::dynamics::ExternalImpulse;
 
 #[derive(Component)]
-pub struct Draggable {
-    pub external_impulse: ExternalImpulse,
-}
+pub struct Draggable;
 
 #[derive(Component)]
 pub struct DragTarget {
@@ -19,52 +17,62 @@ pub fn drag_system(
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     cameras: Query<(&Camera, &GlobalTransform)>,
-    mut draggables: Query<(Entity, &mut DragTarget, &GlobalTransform, &mut ExternalImpulse)>,
-    time: Res<Time>,
+    mut draggables: Query<(Entity, &mut ExternalImpulse, &GlobalTransform), With<Draggable>>,
+    mut drag_targets: Query<(Entity, &mut DragTarget)>,
+    _time: Res<Time>,
 ) {
     let Ok(window) = windows.single() else { return; };
-    let Ok((camera, camera_transform)) = cameras.single() else { return; };
+    let Ok((_camera, camera_transform)) = cameras.single() else { return; };
 
-    // Check if mouse is pressed
+    // Handle mouse press - start dragging (simplified - click on any draggable)
     if mouse_button_input.just_pressed(MouseButton::Left) {
         if let Some(cursor_position) = window.cursor_position() {
-            if let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
-                for (entity, mut drag_target, transform, _) in draggables.iter_mut() {
-                    // Simple ray intersection check - in a real implementation you'd use proper ray casting
-                    let distance_to_object = (transform.translation() - camera_transform.translation()).length();
-                    if distance_to_object < 10.0 { // Simple distance check
-                        drag_target.is_dragging = true;
-                        drag_target.drag_start_pos = transform.translation();
-                        drag_target.drag_start_mouse_pos = cursor_position;
-                        drag_target.entity = entity;
-                        break;
-                    }
-                }
+            // For simplicity, just start dragging the first draggable entity
+            // In a real implementation, you'd do proper ray casting
+            if let Some((draggable_entity, _, transform)) = draggables.iter().next() {
+                commands.spawn(DragTarget {
+                    is_dragging: true,
+                    drag_start_pos: transform.translation(),
+                    drag_start_mouse_pos: cursor_position,
+                    entity: draggable_entity,
+                });
             }
         }
     }
 
-    // Check if mouse is released
+    // Handle mouse release
     if mouse_button_input.just_released(MouseButton::Left) {
-        for (_, mut drag_target, _, _) in draggables.iter_mut() {
-            drag_target.is_dragging = false;
+        for (entity, mut drag_target) in drag_targets.iter_mut() {
+            if drag_target.is_dragging {
+                drag_target.is_dragging = false;
+                commands.entity(entity).despawn(); // Remove DragTarget component
+            }
         }
     }
 
-    // Handle dragging
-    for (entity, drag_target, transform, mut external_impulse) in draggables.iter_mut() {
-        if drag_target.is_dragging {
-            if let Some(current_mouse_pos) = window.cursor_position() {
-                let mouse_delta = current_mouse_pos - drag_target.drag_start_mouse_pos;
+    // Handle active dragging
+    if let Some(cursor_position) = window.cursor_position() {
+        for (_, drag_target) in drag_targets.iter_mut() {
+            if drag_target.is_dragging {
+                if let Ok((_, mut external_impulse, transform)) = draggables.get_mut(drag_target.entity) {
+                    // Calculate mouse movement
+                    let mouse_delta = cursor_position - drag_target.drag_start_mouse_pos;
 
-                // Convert mouse movement to world space movement
-                let camera_right = camera_transform.right();
-                let camera_up = camera_transform.up();
+                    // Convert mouse delta to world space movement (simplified)
+                    let camera_right = camera_transform.right();
+                    let camera_up = camera_transform.up();
 
-                let movement = (mouse_delta.x * camera_right - mouse_delta.y * camera_up) * 0.01;
+                    // Project mouse movement onto the plane defined by the camera's view
+                    let world_delta = camera_right * mouse_delta.x * 0.01 + camera_up * -mouse_delta.y * 0.01; // Scale factor
 
-                // Apply force to move the object
-                external_impulse.impulse = movement * 10.0;
+                    // Calculate target position in world space
+                    let target_position = drag_target.drag_start_pos + world_delta;
+
+                    // Apply impulse to move the object towards the target
+                    const DRAG_FORCE_GAIN: f32 = 50.0; // Adjust this for stronger/weaker drag
+                    let force_direction = target_position - transform.translation();
+                    external_impulse.impulse = force_direction * DRAG_FORCE_GAIN;
+                }
             }
         }
     }
