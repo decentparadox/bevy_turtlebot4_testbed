@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use bevy_rapier3d::dynamics::TypedJoint;
-use crate::drag::Draggable;
+use crate::robot_drag::{Draggable, DraggableBundle};
 
 const STATIC_GROUP: Group = Group::GROUP_1;
 
@@ -239,6 +239,7 @@ fn spawn_ur3e_arm(
             .insert(ColliderMassProperties::Mass(LINK6_MASS))
             .insert(ImpulseJoint::new(link5, TypedJoint::GenericJoint(link5_link6_joint.build())))
             .insert(Draggable)
+            .insert(DraggableBundle::default())
             .with_children(|commands| {
                 const LINK6_MESH_OFFSET: f32 = -0.5 * LINK6_HEIGHT;
                 let transform = Transform::from_xyz(0.0, LINK6_MESH_OFFSET, 0.0)

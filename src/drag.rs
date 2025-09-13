@@ -4,6 +4,21 @@ use bevy_rapier3d::dynamics::ExternalImpulse;
 #[derive(Component)]
 pub struct Draggable;
 
+#[derive(Bundle)]
+pub struct DraggableBundle {
+    pub draggable: Draggable,
+    pub external_impulse: ExternalImpulse,
+}
+
+impl Default for DraggableBundle {
+    fn default() -> Self {
+        Self {
+            draggable: Draggable,
+            external_impulse: ExternalImpulse::default(),
+        }
+    }
+}
+
 #[derive(Component)]
 pub struct DragTarget {
     pub is_dragging: bool,

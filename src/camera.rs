@@ -52,7 +52,7 @@ pub fn accumulate_mouse_events_system(
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
     input_mouse: Res<ButtonInput<MouseButton>>,
-    drag_state: Res<crate::robot_drag::DragState>,
+    // drag_state: Res<crate::robot_drag::DragState>, // Removed as DragState no longer exists
     mut query: Query<&mut PanOrbitCamera>,
 ) {
     // need to accumulate these and apply them to all cameras
@@ -64,8 +64,8 @@ pub fn accumulate_mouse_events_system(
     let orbit_button = MouseButton::Right;
     let pan_button = MouseButton::Middle;
 
-    // Only process camera movement if not dragging the robot
-    if !drag_state.is_dragging {
+    // Process camera movement (drag detection now handled by picking system)
+    {
         if input_mouse.pressed(orbit_button) {
             for ev in ev_motion.read() {
                 rotation_move += ev.delta;
@@ -80,8 +80,7 @@ pub fn accumulate_mouse_events_system(
     for ev in ev_scroll.read() {
         scroll += ev.y;
     }
-    if !drag_state.is_dragging
-        && (input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button))
+    if (input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button))
     {
         orbit_button_changed = true;
     }

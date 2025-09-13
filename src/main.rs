@@ -7,6 +7,7 @@ use bevy_rapier3d::{
     plugin::{NoUserData, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
 };
+// use bevy::picking::DefaultPickingPlugins; // Not needed for simple drag system
 use clap::Parser;
 
 #[derive(Parser)]
@@ -290,7 +291,7 @@ pub fn main() {
                 .add_systems(Startup, robotic_arm::setup)
                 .add_systems(Update, (
                     robotic_arm::keyboard_input, 
-                    drag::drag_system,
+                    robot_drag::drag_system,
                     camera::update_camera_system,
                     camera::accumulate_mouse_events_system,
                     render_origin,
