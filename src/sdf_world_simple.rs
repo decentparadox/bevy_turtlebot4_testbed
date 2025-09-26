@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
 use crate::sdf_loader::*;
 
 /// Component to mark entities loaded from SDF
@@ -27,7 +26,7 @@ impl Plugin for SdfWorldPlugin {
 /// Simple function to load and display SDF information
 pub fn load_sdf_world_simple(
     sdf_path: &str,
-    position: Vec3,
+    _position: Vec3,
     world_registry: &mut ResMut<SdfWorldRegistry>,
 ) -> Result<(), String> {
     // Load and parse SDF file
@@ -41,16 +40,16 @@ pub fn load_sdf_world_simple(
     
     // Print information about each model
     for model in &sdf_world.models {
-        info!("Model: {} (static: {})", model.name, model.is_static);
+        info!("Model: {} (static: {})", model.name, model.static_);
         info!("  Links: {}", model.links.len());
         info!("  Joints: {}", model.joints.len());
         
         for link in &model.links {
             info!("    Link: {}", link.name);
-            info!("      Visuals: {}", link.visuals.len());
-            info!("      Collisions: {}", link.collisions.len());
-            
-            for visual in &link.visuals {
+            info!("      Visuals: {}", if link.visual.is_some() { 1 } else { 0 });
+            info!("      Collisions: {}", if link.collision.is_some() { 1 } else { 0 });
+
+            if let Some(visual) = &link.visual {
                 match &visual.geometry {
                     SdfGeometry::Box { size } => {
                         info!("        Box visual: {}x{}x{}", size[0], size[1], size[2]);
@@ -62,7 +61,11 @@ pub fn load_sdf_world_simple(
                         info!("        Cylinder visual: radius {}, length {}", radius, length);
                     },
                     SdfGeometry::Mesh { uri, scale } => {
-                        info!("        Mesh visual: {} (scale: {}x{}x{})", uri, scale[0], scale[1], scale[2]);
+                        if let Some(scale_vec) = scale {
+                            info!("        Mesh visual: {} (scale: {}x{}x{})", uri, scale_vec[0], scale_vec[1], scale_vec[2]);
+                        } else {
+                            info!("        Mesh visual: {} (no scale)", uri);
+                        }
                     },
                     SdfGeometry::Plane { normal, size } => {
                         info!("        Plane visual: normal [{}, {}, {}], size {}x{}", 

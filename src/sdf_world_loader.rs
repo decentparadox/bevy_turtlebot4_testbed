@@ -101,6 +101,8 @@ pub fn load_sdf_world(
 pub fn spawn_sdf_model(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
+    _meshes: &mut ResMut<Assets<Mesh>>,
+    _materials: &mut ResMut<Assets<StandardMaterial>>,
     world_registry: &mut ResMut<SdfWorldRegistry>,
     model: &SdfModel,
     world_position: Vec3,
@@ -109,17 +111,17 @@ pub fn spawn_sdf_model(
     info!("Spawning SDF model: {}", model.name);
     
     // Calculate model transform
-    let model_transform = Transform {
+    let _model_transform = Transform {
         translation: world_position + Vec3::new(
-            model.pose.translation[0],
-            model.pose.translation[1],
-            model.pose.translation[2],
+            model.pose.xyz[0],
+            model.pose.xyz[1],
+            model.pose.xyz[2],
         ),
         rotation: world_rotation * Quat::from_euler(
             EulerRot::XYZ,
-            model.pose.rotation[0],
-            model.pose.rotation[1],
-            model.pose.rotation[2],
+            model.pose.rpy[0],
+            model.pose.rpy[1],
+            model.pose.rpy[2],
         ),
         scale: Vec3::ONE,
     };
@@ -127,20 +129,20 @@ pub fn spawn_sdf_model(
     // Create model entity
     let model_entity = commands.spawn((
         Transform::from_translation(Vec3::new(
-            model.pose.translation[0],
-            model.pose.translation[1],
-            model.pose.translation[2],
+            model.pose.xyz[0],
+            model.pose.xyz[1],
+            model.pose.xyz[2],
         )) * Transform::from_rotation(Quat::from_euler(
             EulerRot::XYZ,
-            model.pose.rotation[0],
-            model.pose.rotation[1],
-            model.pose.rotation[2],
+            model.pose.rpy[0],
+            model.pose.rpy[1],
+            model.pose.rpy[2],
         )),
         GlobalTransform::default(),
         Visibility::default(),
         SdfModelComponent {
             name: model.name.clone(),
-            is_static: model.is_static,
+            is_static: model.static_,
         },
         Name::new(format!("SDF_Model_{}", model.name)),
     )).id();
@@ -170,17 +172,17 @@ pub fn spawn_sdf_link(
     model_name: &str,
 ) -> Result<(), String> {
     // Calculate link transform
-    let link_transform = Transform {
+    let _link_transform = Transform {
         translation: Vec3::new(
-            link.pose.translation[0],
-            link.pose.translation[1],
-            link.pose.translation[2],
+            link.pose.xyz[0],
+            link.pose.xyz[1],
+            link.pose.xyz[2],
         ),
         rotation: Quat::from_euler(
             EulerRot::XYZ,
-            link.pose.rotation[0],
-            link.pose.rotation[1],
-            link.pose.rotation[2],
+            link.pose.rpy[0],
+            link.pose.rpy[1],
+            link.pose.rpy[2],
         ),
         scale: Vec3::ONE,
     };
@@ -192,14 +194,14 @@ pub fn spawn_sdf_link(
     // Create link entity
     let link_entity = commands.spawn((
         Transform::from_translation(Vec3::new(
-            link.pose.translation[0],
-            link.pose.translation[1],
-            link.pose.translation[2],
+            link.pose.xyz[0],
+            link.pose.xyz[1],
+            link.pose.xyz[2],
         )) * Transform::from_rotation(Quat::from_euler(
             EulerRot::XYZ,
-            link.pose.rotation[0],
-            link.pose.rotation[1],
-            link.pose.rotation[2],
+            link.pose.rpy[0],
+            link.pose.rpy[1],
+            link.pose.rpy[2],
         )),
         GlobalTransform::default(),
         Visibility::default(),
@@ -214,16 +216,16 @@ pub fn spawn_sdf_link(
     commands.entity(parent_entity).add_child(link_entity);
     
     // Setup physics if there are collisions
-    if !link.collisions.is_empty() {
+    if link.collision.is_some() {
         commands.entity(link_entity).insert(SdfPhysicsSetup {
-            collisions: link.collisions.clone(),
+            collisions: vec![link.collision.clone().unwrap()],
             is_static,
             mass,
         });
     }
     
     // Spawn visual elements
-    for visual in &link.visuals {
+    for visual in &link.visual {
         spawn_sdf_visual(
             commands,
             asset_server,
@@ -251,15 +253,15 @@ pub fn spawn_sdf_visual(
     // Calculate visual transform
     let visual_transform = Transform {
         translation: Vec3::new(
-            visual.pose.translation[0],
-            visual.pose.translation[1],
-            visual.pose.translation[2],
+            visual.pose.xyz[0],
+            visual.pose.xyz[1],
+            visual.pose.xyz[2],
         ),
         rotation: Quat::from_euler(
             EulerRot::XYZ,
-            visual.pose.rotation[0],
-            visual.pose.rotation[1],
-            visual.pose.rotation[2],
+            visual.pose.rpy[0],
+            visual.pose.rpy[1],
+            visual.pose.rpy[2],
         ),
         scale: Vec3::ONE,
     };
@@ -272,10 +274,11 @@ pub fn spawn_sdf_visual(
             if let Some(path) = mesh_path {
                 let scene_handle: Handle<Scene> = asset_server.load(&path);
                 world_registry.asset_handles.insert(uri.clone(), scene_handle.clone());
-                
+
+                let scale_vec = scale.unwrap_or(Vec3::ONE);
                 let visual_entity = commands.spawn((
-                    scene_handle,
-                    visual_transform.with_scale(Vec3::new(scale[0], scale[1], scale[2])),
+                    SceneRoot(scene_handle),
+                    visual_transform.with_scale(scale_vec),
                     GlobalTransform::default(),
                     Visibility::default(),
                     SdfEntity {
@@ -292,12 +295,12 @@ pub fn spawn_sdf_visual(
         },
         
         SdfGeometry::Box { size } => {
-            let mesh_handle = asset_server.add(Cuboid::new(size[0], size[1], size[2]).mesh().build());
+            let mesh = Cuboid::new(size[0], size[1], size[2]).mesh().build();
             let material_handle = create_sdf_material(asset_server, &visual.material);
-            
+
             let visual_entity = commands.spawn((
-                mesh_handle,
-                material_handle,
+                Mesh3d(asset_server.add(mesh)),
+                MeshMaterial3d(material_handle),
                 visual_transform,
                 GlobalTransform::default(),
                 Visibility::default(),
@@ -312,12 +315,12 @@ pub fn spawn_sdf_visual(
         },
         
         SdfGeometry::Sphere { radius } => {
-            let mesh_handle = asset_server.add(Sphere::new(*radius).mesh().ico(5).unwrap().build());
+            let mesh = Sphere::new(*radius).mesh().build();
             let material_handle = create_sdf_material(asset_server, &visual.material);
-            
+
             let visual_entity = commands.spawn((
-                mesh_handle,
-                material_handle,
+                Mesh3d(asset_server.add(mesh)),
+                MeshMaterial3d(material_handle),
                 visual_transform,
                 GlobalTransform::default(),
                 Visibility::default(),
@@ -332,12 +335,12 @@ pub fn spawn_sdf_visual(
         },
         
         SdfGeometry::Cylinder { radius, length } => {
-            let mesh_handle = asset_server.add(Cylinder::new(*radius, *length).mesh().build());
+            let mesh = Cylinder::new(*radius, *length).mesh().build();
             let material_handle = create_sdf_material(asset_server, &visual.material);
-            
+
             let visual_entity = commands.spawn((
-                mesh_handle,
-                material_handle,
+                Mesh3d(asset_server.add(mesh)),
+                MeshMaterial3d(material_handle),
                 visual_transform,
                 GlobalTransform::default(),
                 Visibility::default(),
@@ -352,12 +355,12 @@ pub fn spawn_sdf_visual(
         },
         
         SdfGeometry::Plane { normal: _, size } => {
-            let mesh_handle = asset_server.add(Plane3d::default().mesh().size(size[0], size[1]).build());
+            let mesh = Plane3d::default().mesh().size(size[0], size[1]).build();
             let material_handle = create_sdf_material(asset_server, &visual.material);
-            
+
             let visual_entity = commands.spawn((
-                mesh_handle,
-                material_handle,
+                Mesh3d(asset_server.add(mesh)),
+                MeshMaterial3d(material_handle),
                 visual_transform,
                 GlobalTransform::default(),
                 Visibility::default(),
@@ -385,22 +388,12 @@ fn create_sdf_material(
     sdf_material: &Option<SdfMaterial>,
 ) -> Handle<StandardMaterial> {
     if let Some(material) = sdf_material {
+        let base_color = material.diffuse.unwrap_or(Color::WHITE);
+        let emissive = material.emissive.unwrap_or(Color::BLACK);
+
         asset_server.add(StandardMaterial {
-            base_color: Color::srgba(
-                material.diffuse[0],
-                material.diffuse[1], 
-                material.diffuse[2],
-                material.diffuse[3],
-            ),
-            emissive: LinearRgba::new(
-                material.emissive[0],
-                material.emissive[1],
-                material.emissive[2],
-                material.emissive[3],
-            ),
-            base_color_texture: material.texture.as_ref().map(|tex| {
-                asset_server.load(tex.as_str())
-            }),
+            base_color,
+            emissive: LinearRgba::from(emissive),
             ..default()
         })
     } else {
@@ -451,6 +444,8 @@ fn resolve_mesh_uri(uri: &str) -> Option<String> {
 fn process_sdf_load_requests(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut world_registry: ResMut<SdfWorldRegistry>,
     mut load_requests: EventReader<LoadSdfWorldRequest>,
 ) {
@@ -460,6 +455,8 @@ fn process_sdf_load_requests(
         match load_sdf_world(
             &mut commands,
             &asset_server,
+            &mut meshes,
+            &mut materials,
             &mut world_registry,
             &request.sdf_path,
             request.spawn_position,

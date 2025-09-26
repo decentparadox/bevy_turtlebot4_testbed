@@ -10,6 +10,16 @@ use bevy_rapier3d::{
 // use bevy::picking::DefaultPickingPlugins; // Not needed for simple drag system
 use clap::Parser;
 
+mod camera;
+mod keyboard_controls;
+mod lidar;
+mod robot_drag;
+mod robotic_arm;
+mod sdf_loader;
+mod sdf_world_loader;
+mod sdf_world_simple;
+mod turtlebot4;
+
 #[derive(Parser)]
 #[command(name = "bevy_turtlebot4_testbed")]
 #[command(version = "1.0")]
@@ -180,15 +190,6 @@ fn update_projection_from_robot(
     }
 }
 
-mod camera;
-mod keyboard_controls;
-mod lidar;
-mod robot_drag;
-mod turtlebot4;
-mod sdf_loader;
-mod robotic_arm;
-mod drag;
-
 #[cfg(test)]
 mod tests;
 
@@ -290,8 +291,12 @@ pub fn main() {
                 .insert_resource(robotic_arm::JointTargets::default())
                 .add_systems(Startup, robotic_arm::setup)
                 .add_systems(Update, (
-                    robotic_arm::keyboard_input, 
-                    robot_drag::drag_system,
+                    robotic_arm::keyboard_input,
+                    robotic_arm::update_gripped_objects,
+                    robotic_arm::detect_drag_state,
+                    robotic_arm::return_to_original_position,
+                    robotic_arm::simple_gripper_control,
+                    robotic_arm::animate_gripper_fingers_system,
                     camera::update_camera_system,
                     camera::accumulate_mouse_events_system,
                     render_origin,
@@ -352,45 +357,3 @@ fn setup_camera_and_robot(
 
 }
 
-fn setup_arm_camera(mut commands: Commands) {
-    let translation = Vec3::new(3.0, 3.0, 3.0);
-    let focus = Vec3::ZERO;
-    let transform = Transform::from_translation(translation).looking_at(focus, Vec3::Y);
-
-    // Setup camera for robotic arm viewing
-    commands
-        .spawn((
-            Camera3d::default(),
-            transform,
-            Visibility::default(),
-            InheritedVisibility::default(),
-            ViewVisibility::default(),
-            Camera {
-                order: 1,
-                is_active: true,
-                ..default()
-            },
-        ))
-        .insert(camera::PanOrbitCamera {
-            focus,
-            radius: translation.length(),
-            ..default()
-        });
-
-    // Add some basic lighting for better visibility
-    commands.spawn((
-        DirectionalLight {
-            illuminance: 10000.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, -0.5, 0.0)),
-    ));
-
-    // Add ambient lighting
-    commands.insert_resource(AmbientLight {
-        color: Color::WHITE,
-        brightness: 300.0,
-        affects_lightmapped_meshes: true,
-    });
-}
