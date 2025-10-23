@@ -7,6 +7,8 @@ use bevy_rapier3d::{
     plugin::{NoUserData, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
 };
+use bevy_stl::StlPlugin;
+use bevy_obj::ObjPlugin;
 // use bevy::picking::DefaultPickingPlugins; // Not needed for simple drag system
 use clap::Parser;
 
@@ -256,6 +258,8 @@ pub fn main() {
     let mut app_binding = App::new();
     let app_binding = app_binding
         .add_plugins(DefaultPlugins)
+        .add_plugins(StlPlugin)
+        .add_plugins(ObjPlugin)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugins(RapierDebugRenderPlugin::default())
 
@@ -297,6 +301,7 @@ pub fn main() {
                     robotic_arm::return_to_original_position,
                     robotic_arm::simple_gripper_control,
                     robotic_arm::animate_gripper_fingers_system,
+                    robotic_arm::highlight_grippable_blocks,
                     camera::update_camera_system,
                     camera::accumulate_mouse_events_system,
                     render_origin,

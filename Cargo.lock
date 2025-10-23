@@ -68,6 +68,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "ahash"
+version = "0.8.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
+dependencies = [
+ "cfg-if",
+ "getrandom 0.3.3",
+ "once_cell",
+ "version_check",
+ "zerocopy",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -902,6 +915,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_obj"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2e7ff43bb4ade2ca3ce6fd3bb8179019b6f25fe3f18aea1dc1428e7a1a25f56"
+dependencies = [
+ "bevy",
+ "serde",
+ "thiserror 2.0.16",
+ "tobj",
+]
+
+[[package]]
 name = "bevy_pbr"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1181,6 +1206,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_stl"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0a2b71110d830e36b642ad25c2dce0677e032d1c4db96bb885cb394190685fc"
+dependencies = [
+ "bevy",
+ "stl_io",
+ "thiserror 2.0.16",
+]
+
+[[package]]
 name = "bevy_tasks"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1271,7 +1307,9 @@ version = "0.1.0"
 dependencies = [
  "approx",
  "bevy",
+ "bevy_obj",
  "bevy_rapier3d",
+ "bevy_stl",
  "clap",
  "quick-xml",
  "rand",
@@ -2158,6 +2196,15 @@ checksum = "4a3d7db9596fecd151c5f638c0ee5d5bd487b6e0ea232e5dc96d5250f6f94b1d"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+]
+
+[[package]]
+name = "float-cmp"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -4228,6 +4275,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "stl_io"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cff2e145168af9fef3b518ac0c6f9849c407b3df8a28582ced9f1fda510aa34c"
+dependencies = [
+ "byteorder",
+ "float-cmp",
+]
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4389,6 +4446,16 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "tobj"
+version = "4.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04aca6092e5978e708ee784e8ab9b5cf3cdb598b28f99a2f257446e7081a7025"
+dependencies = [
+ "ahash",
+ "futures-lite",
+]
 
 [[package]]
 name = "toml_datetime"

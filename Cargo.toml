@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 bevy = { version = "0.16", features = ["jpeg"] }
 bevy_rapier3d = { version = "0.30.0", features = ["debug-render-3d"] }
+bevy_stl = "0.16"
+bevy_obj = "0.16"
 
 clap = { version = "4.4", features = ["derive"] }
 tracing = "0.1"

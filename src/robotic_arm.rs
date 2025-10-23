@@ -16,8 +16,6 @@ pub enum ArmLink {
     Link5,
     Link6,
     GripperBase,
-    GripperFinger1,
-    GripperFinger2,
 }
 
 #[derive(Component)]
@@ -326,7 +324,7 @@ fn spawn_ur3e_arm(
         .id();
 
     // Spawn the gripper attached to Link6
-    spawn_simple_gripper(commands, link6, meshes, materials);
+    spawn_simple_gripper(commands, link6, asset_server, meshes, materials);
 
     // Spawn multiple pickup blocks around the robot
     spawn_pickup_blocks(commands, meshes, materials);
@@ -337,8 +335,8 @@ fn spawn_pickup_blocks(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    // Create a block mesh (10cm cube) - made bigger for visibility
-    let block_mesh = meshes.add(Cuboid::new(0.10, 0.10, 0.10));
+    // Create a block mesh (5cm cube) - smaller for better manipulation
+    let block_mesh = meshes.add(Cuboid::new(0.05, 0.05, 0.05));
 
     // Create different colored materials for blocks
     let block_materials = [
@@ -378,14 +376,14 @@ fn spawn_pickup_blocks(
 
     // Spawn 8 blocks in a strategic pattern around the robot
     let positions = [
-        Vec3::new(0.3, 0.02, 0.0),   // Front center
-        Vec3::new(0.2, 0.02, 0.2),   // Front right
-        Vec3::new(0.0, 0.02, 0.3),   // Right center
-        Vec3::new(-0.2, 0.02, 0.2),  // Back right
-        Vec3::new(-0.3, 0.02, 0.0),  // Back center
-        Vec3::new(-0.2, 0.02, -0.2), // Back left
-        Vec3::new(0.0, 0.02, -0.3),  // Left center
-        Vec3::new(0.2, 0.02, -0.2),  // Front left
+        Vec3::new(0.3, 0.025, 0.0),   // Front center
+        Vec3::new(0.2, 0.025, 0.2),   // Front right
+        Vec3::new(0.0, 0.025, 0.3),   // Right center
+        Vec3::new(-0.2, 0.025, 0.2),  // Back right
+        Vec3::new(-0.3, 0.025, 0.0),  // Back center
+        Vec3::new(-0.2, 0.025, -0.2), // Back left
+        Vec3::new(0.0, 0.025, -0.3),  // Left center
+        Vec3::new(0.2, 0.025, -0.2),  // Front left
     ];
 
     for (i, position) in positions.iter().enumerate() {
@@ -395,8 +393,8 @@ fn spawn_pickup_blocks(
             MeshMaterial3d(block_materials[material_index].clone()),
             Transform::from_translation(*position),
             RigidBody::Dynamic,
-            Collider::cuboid(0.05, 0.05, 0.05), // 10cm cube
-            ColliderMassProperties::Mass(0.5), // Increased mass for bigger blocks
+            Collider::cuboid(0.025, 0.025, 0.025), // 5cm cube (half-extents)
+            ColliderMassProperties::Mass(0.2), // Lighter mass for smaller blocks
             PickupBlock,
             CollisionGroups::new(Group::GROUP_2, Group::ALL),
         ));
@@ -406,67 +404,47 @@ fn spawn_pickup_blocks(
 fn spawn_simple_gripper(
     commands: &mut Commands,
     parent_entity: Entity,
-    meshes: &mut ResMut<Assets<Mesh>>,
+    asset_server: &Res<AssetServer>,
+    _meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    // Simple gripper dimensions - made larger and more visible
-    const GRIPPER_SIZE: Vec3 = Vec3::new(0.08, 0.06, 0.10);
-    const FINGER_LENGTH: f32 = 0.08;
-    const FINGER_WIDTH: f32 = 0.012;
-
-    // Create meshes and materials
-    let gripper_mesh = meshes.add(Cuboid::new(GRIPPER_SIZE.x, GRIPPER_SIZE.y, GRIPPER_SIZE.z));
-    let finger_mesh = meshes.add(Cuboid::new(FINGER_WIDTH, FINGER_LENGTH, FINGER_WIDTH));
-
+    // Create material for gripper
     let gripper_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.8, 0.8, 0.9), // Light blue - very visible
-        metallic: 0.9,
-        perceptual_roughness: 0.2,
-        emissive: LinearRgba::new(0.05, 0.05, 0.1, 1.0), // Slight blue glow
+        base_color: Color::srgb(0.7, 0.7, 0.7), // Metallic gray for realistic look
+        metallic: 0.8,
+        perceptual_roughness: 0.3,
         ..default()
     });
 
-    let finger_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.9, 0.2), // Bright yellow - highly visible
-        metallic: 0.8,
-        perceptual_roughness: 0.1,
-        emissive: LinearRgba::new(0.2, 0.2, 0.0, 1.0), // Strong yellow glow
-        ..default()
-    });
+    // Calculate proper gripper position - at the end of Link6
+    const LINK6_HEIGHT: f32 = 0.049000; // From earlier definition
+    let gripper_z_offset = LINK6_HEIGHT * 0.5; // Position at the end of Link6
 
     // Spawn gripper as child of Link6
     commands.entity(parent_entity).with_children(|commands| {
-        // Gripper base (purely visual, no physics)
+        // Gripper base entity (for logic and collision detection) with gripper model as child
         commands.spawn((
             ArmLink::GripperBase,
             SimpleGripper {
                 is_open: false,
                 grip_strength: 1.0,
             },
-            Mesh3d(gripper_mesh),
-            MeshMaterial3d(gripper_material),
-            Transform::from_xyz(0.0, 0.0, 0.08), // Offset from Link6
+            Transform::from_xyz(0.0, 0.0, gripper_z_offset), // Position at end of Link6
             Visibility::default(),
             // Add sensor collider for detection only
-            Collider::cuboid(GRIPPER_SIZE.x * 0.6, GRIPPER_SIZE.y * 0.6, GRIPPER_SIZE.z * 0.6),
+            Collider::cuboid(0.03, 0.02, 0.04), // Collider for gripper pickup detection
             Sensor, // This makes it a sensor collider (no physics interactions)
             CollisionGroups::new(Group::GROUP_1, Group::ALL), // Same as Link6
         )).with_children(|commands| {
-            // Left finger
+            // Load the 2FG7 gripper OBJ file
+            // Adjust scale and rotation as needed for proper alignment
+            const SCALE_FACTOR: f32 = 0.001; // Adjust this value based on the OBJ file's units
+            
             commands.spawn((
-                ArmLink::GripperFinger1,
-                Mesh3d(finger_mesh.clone()),
-                MeshMaterial3d(finger_material.clone()),
-                Transform::from_xyz(-0.01, FINGER_LENGTH * 0.5, 0.03),
-                Visibility::default(),
-            ));
-
-            // Right finger
-            commands.spawn((
-                ArmLink::GripperFinger2,
-                Mesh3d(finger_mesh),
-                MeshMaterial3d(finger_material),
-                Transform::from_xyz(0.01, FINGER_LENGTH * 0.5, 0.03),
+                Mesh3d(asset_server.load::<Mesh>("UR3e/gripper_2fg7.obj")),
+                MeshMaterial3d(gripper_material.clone()),
+                Transform::from_scale(Vec3::splat(SCALE_FACTOR))
+                    .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)), // Rotate to align with Link6
                 Visibility::default(),
             ));
         });
@@ -667,32 +645,11 @@ fn release_gripped_blocks(commands: &mut Commands, gripped_query: &Query<(Entity
 
         // Re-add physics to the block
         commands.entity(gripped_entity).insert(RigidBody::Dynamic);
-        commands.entity(gripped_entity).insert(Collider::cuboid(0.02, 0.02, 0.02)); // 4cm cube
-        commands.entity(gripped_entity).insert(ColliderMassProperties::Mass(0.1));
+        commands.entity(gripped_entity).insert(Collider::cuboid(0.025, 0.025, 0.025)); // 5cm cube (matches spawn size)
+        commands.entity(gripped_entity).insert(ColliderMassProperties::Mass(0.2));
     }
 }
 
-fn animate_gripper_fingers(
-    children: &Children,
-    finger_query: &mut Query<&mut Transform, (With<ArmLink>, Without<Draggable>, Without<GrippedObject>)>,
-    is_open: bool,
-) {
-    for child in children.iter() {
-        if let Ok(mut transform) = finger_query.get_mut(child) {
-            // More obvious finger animation - move fingers apart when open
-            let finger_separation = if is_open { 0.05 } else { 0.01 };
-
-            // Determine if this is left or right finger based on current x position
-            if transform.translation.x < 0.0 {
-                // Left finger
-                transform.translation.x = -finger_separation;
-            } else if transform.translation.x > 0.0 {
-                // Right finger
-                transform.translation.x = finger_separation;
-            }
-        }
-    }
-}
 
 pub fn detect_drag_state(
     mut query: Query<(&mut DragState, &Transform, &OriginalTransform), With<Draggable>>,
@@ -769,8 +726,15 @@ pub fn update_gripped_objects(
     // Make gripped objects follow the gripper
     for gripper_global_transform in gripper_query.iter() {
         for mut block_transform in gripped_query.iter_mut() {
-            // Position block slightly in front of gripper
-            let offset = gripper_global_transform.forward() * 0.02 + gripper_global_transform.up() * 0.01;
+            // Position block properly between gripper fingers
+            // The gripper fingers extend forward, so we need to offset the block
+            // forward (Z-axis in gripper's local space) and slightly down
+            let forward_offset = 0.08; // Distance forward from gripper base to center of grip
+            let down_offset = -0.02; // Slight downward offset for better positioning
+            
+            let offset = gripper_global_transform.forward() * forward_offset 
+                       + gripper_global_transform.up() * down_offset;
+            
             block_transform.translation = gripper_global_transform.translation() + offset;
             block_transform.rotation = gripper_global_transform.rotation();
         }
@@ -779,9 +743,49 @@ pub fn update_gripped_objects(
 
 pub fn animate_gripper_fingers_system(
     gripper_query: Query<(&SimpleGripper, &Children), With<SimpleGripper>>,
-    mut finger_query: Query<&mut Transform, (With<ArmLink>, Without<Draggable>, Without<GrippedObject>)>,
+    material_query: Query<&MeshMaterial3d<StandardMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    // Update gripper color based on open/closed state for visual feedback
     for (gripper, children) in gripper_query.iter() {
-        animate_gripper_fingers(children, &mut finger_query, gripper.is_open);
+        for child_entity in children.iter() {
+            if let Ok(material_handle) = material_query.get(child_entity) {
+                if let Some(material) = materials.get_mut(&material_handle.0) {
+                    // Change color based on gripper state
+                    material.base_color = if gripper.is_open {
+                        Color::srgb(0.5, 0.8, 0.5) // Green when open
+                    } else {
+                        Color::srgb(0.8, 0.5, 0.5) // Red when closed
+                    };
+                }
+            }
+        }
+    }
+}
+
+/// Highlight blocks that are in range to be gripped
+pub fn highlight_grippable_blocks(
+    gripper_query: Query<&GlobalTransform, With<SimpleGripper>>,
+    mut block_query: Query<(&Transform, &MeshMaterial3d<StandardMaterial>), (With<PickupBlock>, Without<GrippedObject>)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    const GRIP_RANGE: f32 = 0.15; // Same as pickup range
+    
+    for gripper_transform in gripper_query.iter() {
+        for (block_transform, material_handle) in block_query.iter_mut() {
+            if let Some(material) = materials.get_mut(&material_handle.0) {
+                let distance = gripper_transform.translation().distance(block_transform.translation);
+                
+                // Add white highlight to blocks in range
+                if distance <= GRIP_RANGE {
+                    // Brighten the color when in range
+                    let current_color = material.base_color;
+                    material.emissive = current_color.to_linear() * 2.0;
+                } else {
+                    // Reset emissive when out of range
+                    material.emissive = LinearRgba::BLACK;
+                }
+            }
+        }
     }
 }
